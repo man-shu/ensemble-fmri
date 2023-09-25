@@ -9,6 +9,7 @@ import glob
 import os
 import numpy as np
 from nilearn.input_data import NiftiMasker
+from nilearn import image
 import ibc_public.utils_data
 from nilearn.glm.first_level import (
     make_first_level_design_matrix,
@@ -16,6 +17,7 @@ from nilearn.glm.first_level import (
 )
 from sklearn.svm import LinearSVC
 from sklearn.model_selection import cross_val_score, LeaveOneGroupOut
+from tqdm import tqdm
 
 MAIN_CONDITIONS = [
     "complex",
@@ -101,7 +103,7 @@ masker = NiftiMasker(
 )
 
 scores = []
-for subject, session in subject_session:
+for subject, session in tqdm(subject_session):
     # fetch the data
     data_path = os.path.join(ibc, subject, session, "func")
     fmri = sorted(glob.glob(os.path.join(data_path, "w*RSVPLanguage*")))
@@ -117,6 +119,7 @@ for subject, session in subject_session:
     if not os.path.exists(local_dir):
         os.mkdir(local_dir)
 
+    all_sessions = []
     for i in range(n_sessions):
         dmtx = make_dmtx(events[i], fmri[i], confounds[i])
         model.fit(fmri[i], design_matrices=[dmtx])
@@ -125,14 +128,18 @@ for subject, session in subject_session:
             name = trial[:-3]
             if name in MAIN_CONDITIONS:
                 z = model.compute_contrast(dmtx.columns == trial)
-                z.to_filename(
-                    os.path.join(local_dir, "session_%i_%s.nii.gz")
-                    % (i, trial)
-                )
-                z_ = z.get_fdata()
-                Y.append(z_[z_ != 0])
-                X.append(name)
-                labels.append(i)
+                all_sessions.append(z)
+                # z.to_filename(
+                #     os.path.join(local_dir, "session_%i_%s.nii.gz")
+                #     % (i, trial)
+                # )
+                # z_ = z.get_fdata()
+                # Y.append(z_[z_ != 0])
+                # X.append(name)
+                # labels.append(i)
+    z = image.concat_imgs(all_sessions)
+    print(z.shape)
+    z.to_filename(os.path.join(local_dir, f"{subject}.nii.gz"))
 
     # X = np.array(X)
     # Y = np.array(Y)
