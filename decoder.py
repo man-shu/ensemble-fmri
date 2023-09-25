@@ -12,6 +12,8 @@ from sklearn.model_selection import (
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 import ibc_public.utils_data
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 data_dir = "../ibc_data/rsvp_trial/3mm/"
 subjects_sessions = ibc_public.utils_data.get_subject_session("rsvp-language")
@@ -68,7 +70,7 @@ for train, test in tqdm(cv.split(X, Y, groups)):
     result["predicted"] = prediction
     result["dummy_predicted"] = dummy_prediction
     result["train_subjects"] = np.unique(groups[train])
-    result["test_subjects"] = np.unique(groups[test])
+    result["test_subjects"] = np.unique(groups[test])[0]
 
     results.append(result)
 
@@ -77,3 +79,14 @@ results.to_pickle("results.pkl")
 print(results)
 print(results["accuracy"].mean())
 print(results["dummy_accuracy"].mean())
+
+sns.barplot(
+    data=results, x="test_subjects", y="accuracy", palette=sns.color_palette()
+)
+sns.barplot(
+    data=results,
+    x="test_subjects",
+    y="dummy_accuracy",
+    palette=sns.color_palette("pastel"),
+)
+plt.savefig("results.png")
