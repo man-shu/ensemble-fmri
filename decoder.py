@@ -14,6 +14,8 @@ from tqdm import tqdm
 import ibc_public.utils_data
 import seaborn as sns
 import matplotlib.pyplot as plt
+from joblib import Parallel, delayed
+import time
 
 data_dir = "../ibc_data/rsvp_trial/3mm/"
 subjects_sessions = ibc_public.utils_data.get_subject_session("rsvp-language")
@@ -51,12 +53,8 @@ for dat in ["responses", "conditions", "runs", "subjects"]:
     data[dat] = np.concatenate(data[dat])
     print(data[dat].shape)
 
-cv = LeaveOneGroupOut()
-X = data["responses"]
-Y = data["conditions"]
-groups = data["subjects"]
-results = []
-for train, test in tqdm(cv.split(X, Y, groups)):
+
+def classify(train, test, cv, X, Y, groups):
     result = {}
     clf = LinearSVC(dual="auto").fit(X[train], Y[train])
     dummy = DummyClassifier(strategy="most_frequent").fit(X[train], Y[train])
@@ -72,10 +70,22 @@ for train, test in tqdm(cv.split(X, Y, groups)):
     result["train_subjects"] = np.unique(groups[train])
     result["test_subjects"] = np.unique(groups[test])[0]
 
-    results.append(result)
+    return result
+
+
+n_jobs = len(subjects)
+cv = LeaveOneGroupOut()
+X = data["responses"]
+Y = data["conditions"]
+groups = data["subjects"]
+
+results = Parallel(n_jobs=n_jobs, verbose=2, backend="loky")(
+    delayed(classify)(train, test, cv, X, Y, groups)
+    for train, test in cv.split(X, Y, groups)
+)
 
 results = pd.DataFrame(results)
-results.to_pickle("results.pkl")
+results.to_pickle(f"results_{time.strftime('%Y%m%d-%H%M%S')}.pkl")
 print(results)
 print(results["accuracy"].mean())
 print(results["dummy_accuracy"].mean())
@@ -89,4 +99,6 @@ sns.barplot(
     y="dummy_accuracy",
     palette=sns.color_palette("pastel"),
 )
-plt.savefig("results.png")
+plt.ylabel("Accuracy")
+plt.xlabel("Test Subject")
+plt.savefig(f"results_{time.strftime('%Y%m%d-%H%M%S')}.png")
