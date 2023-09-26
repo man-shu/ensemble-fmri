@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 import time
 
-data_dir = "../ibc_data/rsvp_trial/3mm/"
+data_dir = "rsvp_trial"
 subjects_sessions = ibc_public.utils_data.get_subject_session("rsvp-language")
 subjects = np.array(
     [subject for subject, session in subjects_sessions], dtype="object"
@@ -26,7 +26,9 @@ subjects = np.unique(subjects)
 data = dict(responses=[], conditions=[], runs=[], subjects=[])
 for subject in subjects:
     try:
-        response = image.load_img(os.path.join(data_dir, f"{subject}.nii.gz"))
+        response = image.load_img(
+            os.path.join(data_dir, f"{subject}", f"{subject}.nii.gz")
+        )
     except:
         print(f"{subject} not found")
         continue
@@ -36,11 +38,11 @@ for subject in subjects:
     num_trials = response.shape[0]
     subs = np.repeat(subject, num_trials)
     conditions = pd.read_csv(
-        os.path.join(data_dir, f"{subject}_labels.csv"), header=None
+        os.path.join(data_dir, "sub-01", "sub-01_labels.csv"), header=None
     )
     conditions = conditions[0].values
     runs = pd.read_csv(
-        os.path.join(data_dir, f"{subject}_runs.csv"), header=None
+        os.path.join(data_dir, "sub-01", "sub-01_runs.csv"), header=None
     )
     runs = runs[0].values
 
@@ -79,10 +81,10 @@ X = data["responses"]
 Y = data["conditions"]
 groups = data["subjects"]
 
-results = Parallel(n_jobs=n_jobs, verbose=2, backend="loky")(
-    delayed(classify)(train, test, cv, X, Y, groups)
-    for train, test in cv.split(X, Y, groups)
-)
+results = []
+for train, test in tqdm(cv.split(X, Y, groups)):
+    result = classify(train, test, cv, X, Y, groups)
+    results.append(result)
 
 results = pd.DataFrame(results)
 results.to_pickle(f"results_{time.strftime('%Y%m%d-%H%M%S')}.pkl")
@@ -99,6 +101,21 @@ sns.barplot(
     y="dummy_accuracy",
     palette=sns.color_palette("pastel"),
 )
+plt.axhline(y=results["accuracy"].mean(), color="k", linestyle="--")
+plt.text(
+    x=-1.3,
+    y=results["accuracy"].mean(),
+    s=f"{results['accuracy'].mean()}",
+    color="k",
+)
+plt.text(
+    x=0.34,
+    y=results["accuracy"].mean() + 0.01,
+    s="Mean Accuracy",
+    color="k",
+)
 plt.ylabel("Accuracy")
 plt.xlabel("Test Subject")
-plt.savefig(f"results_{time.strftime('%Y%m%d-%H%M%S')}.png")
+# plt.savefig(f"results_{time.strftime('%Y%m%d-%H%M%S')}.png")
+plt.savefig("results.png")
+plt.close()
