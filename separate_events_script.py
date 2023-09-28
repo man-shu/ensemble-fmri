@@ -115,7 +115,7 @@ for subject, session in tqdm(subject_session):
     X = []
     labels = []
     n_sessions = len(fmri)
-    local_dir = os.path.join(write_dir, subject)
+    local_dir = os.path.join(write_dir)
     if not os.path.exists(local_dir):
         os.mkdir(local_dir)
 
@@ -139,7 +139,14 @@ for subject, session in tqdm(subject_session):
                 # labels.append(i)
     z = image.concat_imgs(all_sessions)
     print(z.shape)
-    z.to_filename(os.path.join(local_dir, f"{subject}.nii.gz"))
+    one_point_five_mm_dir = os.makedirs(
+        os.path.join(local_dir, "1_5mm"), exist_ok=True
+    )
+    z.to_filename(os.path.join(one_point_five_mm_dir, f"{subject}.nii.gz"))
+    # downsample to 3mm
+    three_mm_dir = os.makedirs(os.path.join(local_dir, "3mm"), exist_ok=True)
+    z = image.resample_img(z, target_affine=np.diag((3, 3, 3)))
+    z.to_filename(os.path.join(three_mm_dir, f"{subject}.nii.gz"))
 
     # X = np.array(X)
     # Y = np.array(Y)

@@ -16,48 +16,62 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 import time
+import pickle
 
+# input data root path
 data_dir = "rsvp_trial"
+data_resolution = "3mm"  # or 1_5mm
+nifti_dir = os.path.join(data_dir, data_resolution)
+
+# trial conditions
+conditions = pd.read_csv(os.path.join(data_dir, "labels.csv"), header=None)
+conditions = conditions[0].values
+# run labels
+runs = pd.read_csv(os.path.join(data_dir, "runs.csv"), header=None)
+runs = runs[0].values
+# get subject list for rsvp-language
 subjects_sessions = ibc_public.utils_data.get_subject_session("rsvp-language")
 subjects = np.array(
     [subject for subject, session in subjects_sessions], dtype="object"
 )
 subjects = np.unique(subjects)
+# create empty dictionary to store data
 data = dict(responses=[], conditions=[], runs=[], subjects=[])
+# load data
+print("Loading data...")
 for subject in tqdm(subjects):
     try:
-        response = image.load_img(
-            os.path.join(data_dir, f"{subject}", f"{subject}.nii.gz")
-        )
+        response = image.load_img(os.path.join(nifti_dir, f"{subject}.nii.gz"))
+        response.shape
     except:
         print(f"{subject} not found")
         continue
-    response = image.resample_img(response, target_affine=np.diag((3, 3, 3)))
-    response.shape
     response = response.get_fdata()
     # reshape from (53, 63, 52, 360) to 2d array (360, 53*63*52)
-    response = response.reshape(response.shape[-1], -1)
+    response = response.reshape(np.prod(response.shape[:3]), -1)
+    response = response.T
     num_trials = response.shape[0]
     subs = np.repeat(subject, num_trials)
-    conditions = pd.read_csv(
-        os.path.join(data_dir, "sub-01", "sub-01_labels.csv"), header=None
-    )
-    conditions = conditions[0].values
-    runs = pd.read_csv(
-        os.path.join(data_dir, "sub-01", "sub-01_runs.csv"), header=None
-    )
-    runs = runs[0].values
-
+    # append to dictionary
     data["responses"].append(response)
     data["conditions"].append(conditions)
     data["runs"].append(runs)
     data["subjects"].append(subs)
 
+print("Concatenating data...")
+# concatenate data
 for dat in ["responses", "conditions", "runs", "subjects"]:
     data[dat] = np.concatenate(data[dat])
-    print(data[dat].shape)
+
+print("Saving data...")
+# save data
+data_file = f"data_{time.strftime('%Y%m%d-%H%M%S')}.pkl"
+with open(data_file, "wb") as handle:
+    pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+handle.close()
 
 
+# classification function
 def classify(train, test, cv, X, Y, groups):
     result = {}
     clf = LinearSVC(dual="auto").fit(X[train], Y[train])
@@ -77,19 +91,27 @@ def classify(train, test, cv, X, Y, groups):
     return result
 
 
+# cross validation scheme
 cv = LeaveOneGroupOut()
+
+# across subjects classification
+# Train on 12 (out of 13) subjects and test on the left-out subject
 X = data["responses"]
 Y = data["conditions"]
 groups = data["subjects"]
 across_results = []
+print("Running across subjects classification...")
 for train, test in tqdm(cv.split(X, Y, groups)):
     result = classify(train, test, cv, X, Y, groups)
     across_results.append(result)
-
+# save results
+print("Saving across subjects results...")
 across_results = pd.DataFrame(across_results)
 across_results.to_pickle(
     f"across_results_{time.strftime('%Y%m%d-%H%M%S')}.pkl"
 )
+# plot results
+print("Plotting across subjects results...")
 sns.barplot(
     data=across_results,
     x="test_group",
@@ -120,39 +142,40 @@ plt.xlabel("Test Subject")
 plt.xticks(rotation=30)
 plt.title("Across Subjects")
 plt.savefig(f"across_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
-# plt.savefig("results.png")
-# del across_results
 plt.close()
 
+# within subject classification
+# Train on 5 (out 6) runs and test on left-out run for each subject
 within_results = []
+print("Running within subject classification...")
 for subject in tqdm(subjects):
     sub_index = np.where(data["subjects"] == subject)[0]
     X = data["responses"][sub_index]
     Y = data["conditions"][sub_index]
     groups = data["runs"][sub_index]
-    for train, test in tqdm(cv.split(X, Y, groups)):
+    for train, test in cv.split(X, Y, groups):
         result = classify(train, test, cv, X, Y, groups)
         result["subject"] = subject
         within_results.append(result)
 
+print("Saving within subject results...")
 within_results = pd.DataFrame(within_results)
 within_results.to_pickle(
     f"within_results_{time.strftime('%Y%m%d-%H%M%S')}.pkl"
 )
-print(within_results)
+print("Plotting within subject results...")
 
-
-sns.barplot(
-    data=within_results,
-    x="subject",
-    y="dummy_accuracy",
-    palette=sns.color_palette("pastel"),
-)
 sns.barplot(
     data=within_results,
     x="subject",
     y="accuracy",
     palette=sns.color_palette(),
+)
+sns.barplot(
+    data=within_results,
+    x="subject",
+    y="dummy_accuracy",
+    palette=sns.color_palette("pastel"),
 )
 plt.axhline(y=within_results["accuracy"].mean(), color="k", linestyle="--")
 plt.text(
@@ -172,61 +195,59 @@ plt.xlabel("Subject")
 plt.xticks(rotation=30)
 plt.title("Within subject")
 plt.savefig(f"within_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
-# plt.savefig("results.png")
-# del within_results
 plt.close()
 
 
-mixed_results = []
-data["sub_run"] = np.array(
-    [f"{sub}_{run}" for sub, run in zip(data["subjects"], data["runs"])],
-    dtype="object",
-)
-for subject in tqdm(subjects):
-    for run in range(0, 6):
-        keep_index = np.where(
-            ~((data["subjects"] == subject) & (data["runs"] == run))
-        )[0]
-        X = data["responses"][keep_index]
-        Y = data["conditions"][keep_index]
-        groups = data["sub_run"][keep_index]
-        for train, test in tqdm(cv.split(X, Y, groups)):
-            result = classify(train, test, cv, X, Y, groups)
-            result["subject"] = subject
-            mixed_results.append(result)
+# mixed_results = []
+# data["sub_run"] = np.array(
+#     [f"{sub}_{run}" for sub, run in zip(data["subjects"], data["runs"])],
+#     dtype="object",
+# )
+# for subject in tqdm(subjects):
+#     for run in range(0, 6):
+#         keep_index = np.where(
+#             ~((data["subjects"] == subject) & (data["runs"] == run))
+#         )[0]
+#         X = data["responses"][keep_index]
+#         Y = data["conditions"][keep_index]
+#         groups = data["sub_run"][keep_index]
+#         for train, test in tqdm(cv.split(X, Y, groups)):
+#             result = classify(train, test, cv, X, Y, groups)
+#             result["subject"] = subject
+#             mixed_results.append(result)
 
-mixed_results = pd.DataFrame(mixed_results)
-mixed_results.to_pickle(f"mixed_results_{time.strftime('%Y%m%d-%H%M%S')}.pkl")
-print(mixed_results)
+# mixed_results = pd.DataFrame(mixed_results)
+# mixed_results.to_pickle(f"mixed_results_{time.strftime('%Y%m%d-%H%M%S')}.pkl")
+# print(mixed_results)
 
-sns.barplot(
-    data=mixed_results,
-    x="subject",
-    y="dummy_accuracy",
-    palette=sns.color_palette("pastel"),
-)
-sns.barplot(
-    data=mixed_results,
-    x="subject",
-    y="accuracy",
-    palette=sns.color_palette(),
-)
-plt.axhline(y=mixed_results["accuracy"].mean(), color="k", linestyle="--")
-plt.text(
-    x=-1.3,
-    y=mixed_results["accuracy"].mean(),
-    s=f"{mixed_results['accuracy'].mean()}",
-    color="k",
-)
-plt.text(
-    x=0.34,
-    y=mixed_results["accuracy"].mean() + 0.01,
-    s="Mean Accuracy",
-    color="k",
-)
-plt.ylabel("Accuracy")
-plt.xlabel("Subject")
-plt.savefig(f"mixed_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
-# plt.savefig("results.png")
-# del mixed_results
-plt.close()
+# sns.barplot(
+#     data=mixed_results,
+#     x="subject",
+#     y="dummy_accuracy",
+#     palette=sns.color_palette("pastel"),
+# )
+# sns.barplot(
+#     data=mixed_results,
+#     x="subject",
+#     y="accuracy",
+#     palette=sns.color_palette(),
+# )
+# plt.axhline(y=mixed_results["accuracy"].mean(), color="k", linestyle="--")
+# plt.text(
+#     x=-1.3,
+#     y=mixed_results["accuracy"].mean(),
+#     s=f"{mixed_results['accuracy'].mean()}",
+#     color="k",
+# )
+# plt.text(
+#     x=0.34,
+#     y=mixed_results["accuracy"].mean() + 0.01,
+#     s="Mean Accuracy",
+#     color="k",
+# )
+# plt.ylabel("Accuracy")
+# plt.xlabel("Subject")
+# plt.savefig(f"mixed_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
+# # plt.savefig("results.png")
+# # del mixed_results
+# plt.close()
