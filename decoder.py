@@ -8,6 +8,7 @@ from sklearn.model_selection import (
     GroupShuffleSplit,
     LeavePGroupsOut,
     LeaveOneGroupOut,
+    StratifiedShuffleSplit,
 )
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
@@ -196,6 +197,141 @@ plt.xticks(rotation=30)
 plt.title("Within subject")
 plt.savefig(f"within_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
 plt.close()
+
+
+def _plot_cv_indices(
+    cv,
+    X,
+    y,
+    subject,
+    run,
+    n_splits,
+    out_dir,
+    lw=10,
+):
+    """Create a sample plot for indices of a cross-validation object."""
+    fig, ax = plt.subplots()
+    cmap_data = plt.cm.tab20
+    cmap_cv = plt.cm.coolwarm
+    _, y = np.unique(y, return_inverse=True)
+    # Generate the training/testing visualizations for each CV split
+    for ii, (tr, tt) in enumerate(cv.split(X, y)):
+        # Fill in indices with the training/test groups
+        indices = np.array([np.nan] * len(X))
+        indices[tt] = 1
+        indices[tr] = 0
+        # Visualize the results
+        ax.scatter(
+            range(len(indices)),
+            [ii + 0.5] * len(indices),
+            c=indices,
+            marker="_",
+            lw=lw,
+            cmap=cmap_cv,
+            vmin=-0.2,
+            vmax=1.2,
+        )
+    # Plot the data classes and groups at the end
+    ax.scatter(
+        range(len(X)),
+        [ii + 1.5] * len(X),
+        c=y,
+        marker="_",
+        lw=lw,
+        cmap=cmap_data,
+    )
+    # Formatting
+    yticklabels = [*range(n_splits)] + ["class"]
+    ax.set(
+        yticks=np.arange(n_splits + 1) + 0.5,
+        yticklabels=yticklabels,
+        xlabel="Sample index",
+        ylabel="CV iteration",
+        ylim=[n_splits + 2.2, -0.2],
+    )
+    split_dir = os.path.join(out_dir, "test_train_splits")
+    os.makedirs(split_dir, exist_ok=True)
+    ax.set_title(f"Train/test splits for classifying run {run} of {subject}")
+    plot_file = f"{subject}_run-{run}_cv_indices.png"
+    plot_file = os.path.join(split_dir, plot_file)
+    fig.savefig(plot_file, bbox_inches="tight")
+    plt.close()
+
+
+# within run classification
+# Train on 80 percent of trials and test on left-out 20% of trials for each run
+# cross validation scheme
+cv = StratifiedShuffleSplit(n_splits=30, test_size=0.2, random_state=0)
+print("Running within run classification...")
+within_run_results_dir = "within_run_results_n30_random_state0"
+os.makedirs(within_run_results_dir, exist_ok=True)
+for subject in tqdm(subjects):
+    within_run_results = []
+    for run in range(0, 6):
+        sub_run_mask = np.where(
+            (data["subjects"] == subject) & (data["runs"] == run)
+        )[0]
+        X = data["responses"][sub_run_mask]
+        Y = data["conditions"][sub_run_mask]
+        groups = data["runs"][sub_run_mask]
+        count = 1
+        _plot_cv_indices(cv, X, Y, subject, run, 10, within_run_results_dir)
+        for train, test in cv.split(X, Y, groups):
+            result = classify(train, test, cv, X, Y, groups)
+            result["subject"] = subject
+            result["run"] = run
+            within_run_results.append(result)
+            print(f"split {count} of run {run} of {subject} complete")
+            print(
+                f"accuracy / chance: {result['accuracy']:.2f} / {result['dummy_accuracy']:.2f}"
+            )
+            count += 1
+
+    print("Saving within run results...")
+    within_run_results = pd.DataFrame(within_run_results)
+    within_run_results_pkl = os.path.join(
+        within_run_results_dir,
+        f"within_run_results_{subject}_{time.strftime('%Y%m%d-%H%M%S')}.pkl",
+    )
+    within_run_results.to_pickle(within_run_results_pkl)
+    print("Plotting within run results...")
+    plt.close()
+    sns.barplot(
+        data=within_run_results,
+        x="run",
+        y="accuracy",
+        palette=sns.color_palette(),
+    )
+    sns.barplot(
+        data=within_run_results,
+        x="run",
+        y="dummy_accuracy",
+        palette=sns.color_palette("pastel"),
+    )
+    plt.axhline(
+        y=within_run_results["accuracy"].mean(), color="k", linestyle="--"
+    )
+    plt.text(
+        x=-1.3,
+        y=within_run_results["accuracy"].mean(),
+        s=f"{round(within_run_results['accuracy'].mean(), 2)}",
+        color="k",
+    )
+    plt.text(
+        x=0.34,
+        y=within_run_results["accuracy"].mean() + 0.01,
+        s="Mean Accuracy",
+        color="k",
+    )
+    plt.ylabel("Accuracy")
+    plt.xlabel("Run")
+    plt.title(f"Within run for {subject}")
+    within_run_results_plt = os.path.join(
+        within_run_results_dir,
+        f"within_run_results_{subject}_{time.strftime('%Y%m%d-%H%M%S')}.png",
+    )
+    plt.savefig(within_run_results_plt, bbox_inches="tight")
+    plt.close()
 
 
 # mixed_results = []
