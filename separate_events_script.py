@@ -15,8 +15,6 @@ from nilearn.glm.first_level import (
     make_first_level_design_matrix,
     FirstLevelModel,
 )
-from sklearn.svm import LinearSVC
-from sklearn.model_selection import cross_val_score, LeaveOneGroupOut
 from tqdm import tqdm
 
 MAIN_CONDITIONS = [
@@ -69,10 +67,7 @@ def make_dmtx(events, fmri, confounds=None, t_r=2):
     return dmtx
 
 
-# if 1:  # work at Neurospin
-#     ibc = "/neurospin/ibc/derivatives"
-# else:  # work on drago
-ibc = "/storage/store2/data/ibc/derivatives/"  # Check
+ibc = "/ibc_data/preprocessed/"
 
 # obtain a grey matter mask
 _package_directory = os.path.dirname(
@@ -106,8 +101,14 @@ scores = []
 for subject, session in tqdm(subject_session):
     # fetch the data
     data_path = os.path.join(ibc, subject, session, "func")
-    fmri = sorted(glob.glob(os.path.join(data_path, "w*RSVPLanguage*")))
-    confounds = sorted(glob.glob(os.path.join(data_path, "rp_*RSVPLanguage*")))
+    fmri = sorted(
+        glob.glob(os.path.join(data_path, "*RSVPLanguage*_bold.nii.gz"))
+    )
+    confounds = sorted(
+        glob.glob(
+            os.path.join(data_path, "*RSVPLanguage*_confounds_timeseries.tsv")
+        )
+    )
     events = sorted(
         glob.glob(os.path.join(data_path, "*RSVPLanguage*_events.tsv"))
     )
@@ -129,14 +130,6 @@ for subject, session in tqdm(subject_session):
             if name in MAIN_CONDITIONS:
                 z = model.compute_contrast(dmtx.columns == trial)
                 all_sessions.append(z)
-                # z.to_filename(
-                #     os.path.join(local_dir, "session_%i_%s.nii.gz")
-                #     % (i, trial)
-                # )
-                # z_ = z.get_fdata()
-                # Y.append(z_[z_ != 0])
-                # X.append(name)
-                # labels.append(i)
     z = image.concat_imgs(all_sessions)
     print(z.shape)
     one_point_five_mm_dir = os.makedirs(
@@ -147,12 +140,3 @@ for subject, session in tqdm(subject_session):
     three_mm_dir = os.makedirs(os.path.join(local_dir, "3mm"), exist_ok=True)
     z = image.resample_img(z, target_affine=np.diag((3, 3, 3)))
     z.to_filename(os.path.join(three_mm_dir, f"{subject}.nii.gz"))
-
-    # X = np.array(X)
-    # Y = np.array(Y)
-    # labels = np.array(labels)
-    # clf = LinearSVC()
-    # cv = LeaveOneGroupOut()
-    # score = cross_val_score(clf, Y, X, groups=labels, cv=cv, n_jobs=3)
-    # print(score.mean())
-    # scores.append(score.mean())
