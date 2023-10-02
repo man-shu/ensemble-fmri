@@ -115,7 +115,6 @@ for subject in subjects:
             cv="prefit",
         )
         count = 0
-        result = {}
         for train, test in cv.split(X, y):
             stacked_clf.fit(X[train], y[train])
             dummy_stacked_clf.fit(X[train], y[train])
@@ -127,6 +126,7 @@ for subject in subjects:
                 f" split {count}",
                 f"{accuracy:.2f} / {dummy_accuracy:.2f}",
             )
+            result = {}
             result["run"] = run
             result["accuracy"] = accuracy
             result["dummy_accuracy"] = dummy_accuracy
@@ -138,7 +138,9 @@ for subject in subjects:
             count += 1
 
 results = pd.DataFrame(results)
-results.to_pickle(f"stacked_results_{time.strftime('%Y%m%d-%H%M%S')}.pkl")
+results.to_pickle(
+    f"within_sub_stacked_results_{time.strftime('%Y%m%d-%H%M%S')}.pkl"
+)
 
 print("Plotting within subject results...")
 
@@ -171,7 +173,7 @@ plt.ylabel("Accuracy")
 plt.xlabel("Subject")
 plt.xticks(rotation=30)
 plt.title("Within subject")
-plt.savefig(f"within_stacked_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
+plt.savefig(f"within_sub_stacked_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
 plt.close()
 
 
@@ -221,7 +223,7 @@ for sub_i, subject in tqdm(enumerate(subjects)):
         cv="prefit",
     )
     count = 0
-    result = {}
+
     for train, test in cv.split(X, y, groups=groups):
         stacked_clf.fit(X[train], y[train])
         dummy_stacked_clf.fit(X[train], y[train])
@@ -233,6 +235,7 @@ for sub_i, subject in tqdm(enumerate(subjects)):
             f" split {count}",
             f"{accuracy:.2f} / {dummy_accuracy:.2f}",
         )
+        result = {}
         result["accuracy"] = accuracy
         result["dummy_accuracy"] = dummy_accuracy
         result["subject"] = subject
@@ -278,5 +281,5 @@ plt.ylabel("Accuracy")
 plt.xlabel("Subject")
 plt.xticks(rotation=30)
 plt.title("Across Subjects")
-plt.savefig(f"across_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
+plt.savefig(f"across_sub_stacked_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
 plt.close()

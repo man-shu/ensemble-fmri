@@ -142,6 +142,8 @@ plt.close()
 
 # within subject classification
 # Train on 5 (out 6) runs and test on left-out run for each subject
+# cross validation scheme
+cv = LeaveOneGroupOut()
 within_results = []
 print("Running within subject classification...")
 for subject in tqdm(subjects):
@@ -149,10 +151,16 @@ for subject in tqdm(subjects):
     X = data["responses"][sub_index]
     Y = data["conditions"][sub_index]
     groups = data["runs"][sub_index]
+    count = 0
     for train, test in cv.split(X, Y, groups):
         result = classify(train, test, cv, X, Y, groups)
+        print(
+            f" split {count}",
+            f"{result['accuracy']:.2f} / {result['dummy_accuracy']:.2f}",
+        )
         result["subject"] = subject
         within_results.append(result)
+        count += 1
 
 print("Saving within subject results...")
 within_results = pd.DataFrame(within_results)
