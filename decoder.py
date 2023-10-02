@@ -48,9 +48,11 @@ for subject in tqdm(subjects):
         print(f"{subject} not found")
         continue
     response = response.get_fdata()
+    checksum = response[:, :, :, 0].sum().round(5)
     # reshape from (53, 63, 52, 360) to 2d array (360, 53*63*52)
-    response = response.reshape(np.prod(response.shape[:3]), -1)
-    response = response.T
+    response = response.reshape(-1, response.shape[-1]).T
+    assert response[0, :].sum().round(5) == checksum
+    # get number of trials
     num_trials = response.shape[0]
     subs = np.repeat(subject, num_trials)
     # append to dictionary
@@ -63,13 +65,6 @@ print("Concatenating data...")
 # concatenate data
 for dat in ["responses", "conditions", "runs", "subjects"]:
     data[dat] = np.concatenate(data[dat])
-
-print("Saving data...")
-# save data
-data_file = f"data_{time.strftime('%Y%m%d-%H%M%S')}.pkl"
-with open(data_file, "wb") as handle:
-    pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-handle.close()
 
 
 # classification function
