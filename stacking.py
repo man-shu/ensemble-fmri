@@ -283,3 +283,114 @@ plt.xticks(rotation=30)
 plt.title("Across Subjects")
 plt.savefig(f"across_sub_stacked_results_{time.strftime('%Y%m%d-%H%M%S')}.png")
 plt.close()
+
+##### pretrain across subjects
+##### cv within subject
+fitted_classifiers = []
+dummy_fitted_classifiers = []
+for subject in tqdm(subjects):
+    clf = LinearSVC(dual="auto")
+    dummy_clf = DummyClassifier(strategy="most_frequent")
+    # select data for current subject
+    sub_mask = np.where(data["subjects"] == subject)[0]
+    X = data["responses"][sub_mask]
+    y = data["conditions"][sub_mask]
+    # fit classifier
+    clf.fit(X, y)
+    dummy_clf.fit(X, y)
+    # save classifier
+    fitted_classifiers.append((f"{subject}", clf))
+    dummy_fitted_classifiers.append((f"{subject}", dummy_clf))
+
+results = []
+for sub_i, subject in tqdm(enumerate(subjects)):
+    unique_runs = np.unique(data["runs"])
+    # remove current run from fitted classifiers
+    fitted_classifiers_ = fitted_classifiers.copy()
+    fitted_classifiers_.pop(sub_i)
+    dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
+    dummy_fitted_classifiers_.pop(sub_i)
+    print("Stacking classifiers...")
+    stacked_clf = StackingClassifier(
+        fitted_classifiers_,
+        final_estimator=LinearSVC(dual="auto"),
+        cv="prefit",
+    )
+    dummy_stacked_clf = StackingClassifier(
+        dummy_fitted_classifiers_,
+        final_estimator=DummyClassifier(strategy="most_frequent"),
+        cv="prefit",
+    )
+    # Stack classifiers
+    for run in unique_runs:
+        print(f"Subject {subject}, Run 0{run}")
+        cv = StratifiedShuffleSplit(n_splits=30, test_size=0.2, random_state=0)
+        # select data for current sub, run
+        sub_run_mask = np.where(
+            (data["subjects"] == subject) & (data["runs"] == run)
+        )[0]
+        X = data["responses"][sub_run_mask]
+        y = data["conditions"][sub_run_mask]
+        count = 0
+        for train, test in cv.split(X, y):
+            stacked_clf.fit(X[train], y[train])
+            dummy_stacked_clf.fit(X[train], y[train])
+            prediction = stacked_clf.predict(X[test])
+            dummy_prediction = dummy_stacked_clf.predict(X[test])
+            accuracy = accuracy_score(y[test], prediction)
+            dummy_accuracy = accuracy_score(y[test], dummy_prediction)
+            print(
+                f" split {count}",
+                f"{accuracy:.2f} / {dummy_accuracy:.2f}",
+            )
+            result = {}
+            result["run"] = run
+            result["accuracy"] = accuracy
+            result["dummy_accuracy"] = dummy_accuracy
+            result["subject"] = subject
+            result["true"] = y[test]
+            result["predicted"] = prediction
+            result["dummy_predicted"] = dummy_prediction
+            results.append(result)
+            count += 1
+
+results = pd.DataFrame(results)
+results.to_pickle(
+    f"across_pretrain_within_sub_stacked_results_{time.strftime('%Y%m%d-%H%M%S')}.pkl"
+)
+
+print("Plotting results...")
+
+sns.barplot(
+    data=results,
+    x="subject",
+    y="accuracy",
+    palette=sns.color_palette(),
+)
+sns.barplot(
+    data=results,
+    x="subject",
+    y="dummy_accuracy",
+    palette=sns.color_palette("pastel"),
+)
+plt.axhline(y=results["accuracy"].mean(), color="k", linestyle="--")
+plt.text(
+    x=-1.3,
+    y=results["accuracy"].mean(),
+    s=f"{round(results['accuracy'].mean(), 2)}",
+    color="k",
+)
+plt.text(
+    x=0.34,
+    y=results["accuracy"].mean() + 0.01,
+    s="Mean Accuracy",
+    color="k",
+)
+plt.ylabel("Accuracy")
+plt.xlabel("Subject")
+plt.xticks(rotation=30)
+plt.title("Within subject")
+plt.savefig(
+    f"across_pretrain_within_sub_stacked_results_{time.strftime('%Y%m%d-%H%M%S')}.png"
+)
+plt.close()
