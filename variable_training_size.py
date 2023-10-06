@@ -9,6 +9,7 @@ from sklearn.model_selection import (
     LeavePGroupsOut,
     LeaveOneGroupOut,
     StratifiedShuffleSplit,
+    ShuffleSplit,
 )
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
@@ -93,7 +94,7 @@ for subject in tqdm(subjects):
 
 
 # classification function
-def classify(clf, dummy_clf, train, test, X, Y, setting, count):
+def classify(clf, dummy_clf, train, test, X, Y, setting, count, n_left_out):
     result = {}
     clf = clf.fit(X[train], Y[train])
     dummy_clf = dummy_clf.fit(X[train], Y[train])
@@ -186,9 +187,11 @@ plt.close()
 #### cross-validation within each run ####
 results = []
 # vary percentage of testing data
-for n_left_out in tqdm(range(10, 60, 10)):
+for n_left_out in tqdm(range(10, 100, 10)):
     print(f"Leaving {n_left_out}% of trials out")
-    cv = StratifiedShuffleSplit(test_size=n_left_out / 100, random_state=0)
+    cv = StratifiedShuffleSplit(
+        test_size=n_left_out / 100, random_state=0, n_splits=30
+    )
     for sub_i, subject in enumerate(subjects):
         # remove current subject from fitted classifiers
         fitted_classifiers_ = fitted_classifiers.copy()
@@ -243,9 +246,211 @@ results.to_pickle(os.path.join(results_dir, "results.pkl"))
 
 #### plot results ####
 sns.boxplot(data=results, x="train_size", y="accuracy", hue="setting")
+sns.pointplot(data=results, x="train_size", y="accuracy", hue="setting")
 plt.axhline(y=results["dummy_accuracy"].mean(), color="k", linestyle="--")
 plt.ylabel("Accuracy")
 plt.xlabel("Training size")
-plt.title("Within run")
-plt.savefig(f"results_{time.strftime('%Y%m%d-%H%M%S')}.png")
+# plt.title("Within run")
+plt.savefig(
+    f"bench_results_20231004-132128/box_results_{time.strftime('%Y%m%d-%H%M%S')}.png"
+)
 plt.close()
+
+
+train_sizes = np.unique(results["train_size"])
+dfs = []
+for train_size in train_sizes:
+    for setting in ["conventional", "stacked"]:
+        sub_results = results[
+            (results["train_size"] == train_size)
+            & (results["setting"] == setting)
+        ]
+        df = {}
+        true = []
+        predicted = []
+        dummy_predicted = []
+        for _, row in sub_results.iterrows():
+            true.extend(row["true"])
+            predicted.extend(row["predicted"])
+            dummy_predicted.extend(row["dummy_predicted"])
+        df["accuracy"] = accuracy_score(true, predicted)
+        df["dummy_accuracy"] = accuracy_score(true, dummy_predicted)
+        df["setting"] = setting
+        df["train_size"] = train_size
+
+        dfs.append(df)
+
+dfs = pd.DataFrame(dfs)
+sns.boxplot(data=dfs, x="train_size", y="accuracy", hue="setting")
+plt.axhline(y=results["dummy_accuracy"].mean(), color="k", linestyle="--")
+plt.ylabel("Accuracy")
+plt.xlabel("Training size")
+# plt.title("Within run")
+plt.savefig(
+    f"bench_results_20231004-132128/compiled_box_results_{time.strftime('%Y%m%d-%H%M%S')}.png"
+)
+plt.close()
+
+sns.pointplot(data=dfs, x="train_size", y="accuracy", hue="setting")
+plt.axhline(y=results["dummy_accuracy"].mean(), color="k", linestyle="--")
+plt.ylabel("Accuracy")
+plt.xlabel("Training size")
+# plt.title("Within run")
+plt.savefig(
+    f"bench_results_20231004-132128/compiled_point_results_{time.strftime('%Y%m%d-%H%M%S')}.png"
+)
+plt.close()
+
+
+def _plot_cv_indices(
+    cv,
+    X,
+    y,
+    group,
+    n_left_out,
+    n_splits,
+    out_dir,
+    lw=10,
+):
+    """Create a sample plot for indices of a cross-validation object."""
+    fig, ax = plt.subplots()
+    cmap_data = plt.cm.tab20
+    cmap_cv = plt.cm.coolwarm
+    _, y = np.unique(y, return_inverse=True)
+    _, group = np.unique(group, return_inverse=True)
+    # Generate the training/testing visualizations for each CV split
+    for ii, (tr, tt) in enumerate(cv.split(X, y, group)):
+        # Fill in indices with the training/test groups
+        indices = np.array([np.nan] * len(X))
+        indices[tt] = 1
+        indices[tr] = 0
+        # Visualize the results
+        ax.scatter(
+            range(len(indices)),
+            [ii + 0.5] * len(indices),
+            c=indices,
+            marker="_",
+            lw=lw,
+            cmap=cmap_cv,
+            vmin=-0.2,
+            vmax=1.2,
+        )
+    # Plot the data classes and groups at the end
+    ax.scatter(
+        range(len(X)),
+        [ii + 1.5] * len(X),
+        c=y,
+        marker="_",
+        lw=lw,
+        cmap=cmap_data,
+    )
+    ax.scatter(
+        range(len(X)),
+        [ii + 2.5] * len(X),
+        c=group,
+        marker="_",
+        lw=lw,
+        cmap=cmap_data,
+    )
+    # Formatting
+    yticklabels = [*range(n_splits)] + ["class", "group"]
+    ax.set(
+        yticks=np.arange(n_splits + 2) + 0.5,
+        yticklabels=yticklabels,
+        xlabel="Sample index",
+        ylabel="CV iteration",
+        ylim=[n_splits + 2.2, -0.2],
+    )
+    split_dir = os.path.join(out_dir, "test_train_splits")
+    os.makedirs(split_dir, exist_ok=True)
+    ax.set_title(f"Train/test splits with {n_left_out}% of samples left-out")
+    plot_file = f"{n_left_out}_cv_indices.png"
+    plot_file = os.path.join(split_dir, plot_file)
+    fig.savefig(plot_file, bbox_inches="tight")
+    plt.close()
+
+
+def over_all_runs(n_left_out, subjects, data):
+    results = []
+    cv = ShuffleSplit(test_size=n_left_out / 100, random_state=0, n_splits=20)
+    for sub_i, subject in tqdm(
+        enumerate(subjects),
+        desc=f"{n_left_out}% left-out",
+        position=0,
+        leave=True,
+        total=len(subjects),
+    ):
+        print(f"Subject {subject}")
+        # select data for current subject
+        sub_mask = np.where(data["subjects"] == subject)[0]
+        X = data["responses"][sub_mask]
+        Y = data["conditions"][sub_mask]
+        groups = data["runs"][sub_mask]
+        # remove current subject from fitted classifiers
+        fitted_classifiers_ = fitted_classifiers.copy()
+        fitted_classifiers_.pop(sub_i)
+        dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
+        dummy_fitted_classifiers_.pop(sub_i)
+        # create stacked classifier
+        stacked_clf = StackingClassifier(
+            fitted_classifiers_,
+            final_estimator=LinearSVC(dual="auto"),
+            cv="prefit",
+        )
+        dummy_stacked_clf = StackingClassifier(
+            dummy_fitted_classifiers_,
+            final_estimator=DummyClassifier(strategy="most_frequent"),
+            cv="prefit",
+        )
+        # create conventional classifier
+        clf = LinearSVC(dual="auto")
+        dummy_clf = DummyClassifier(strategy="most_frequent")
+        count = 0
+        _plot_cv_indices(
+            cv,
+            X,
+            Y,
+            groups,
+            n_left_out,
+            20,
+            results_dir,
+        )
+        for train, test in cv.split(X, Y, groups=groups):
+            conventional_result = classify(
+                clf,
+                dummy_clf,
+                train,
+                test,
+                X,
+                Y,
+                "conventional",
+                count,
+                n_left_out,
+            )
+            stacked_result = classify(
+                stacked_clf,
+                dummy_stacked_clf,
+                train,
+                test,
+                X,
+                Y,
+                "stacked",
+                count,
+                n_left_out,
+            )
+            results.append(conventional_result)
+            results.append(stacked_result)
+            count += 1
+
+    return results
+
+
+# vary number of samples left out for testing
+all_results = Parallel(n_jobs=9, verbose=2, backend="loky")(
+    delayed(over_all_runs)(n_left_out, subjects, data)
+    for n_left_out in range(10, 100, 10)
+)
+
+
+# results = pd.DataFrame(results)
+# results.to_pickle(os.path.join(results_dir, "results.pkl"))
