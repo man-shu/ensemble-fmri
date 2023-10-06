@@ -442,6 +442,10 @@ def over_all_runs(n_left_out, subjects, data):
             results.append(stacked_result)
             count += 1
 
+    results = pd.DataFrame(results)
+    results.to_pickle(
+        os.path.join(results_dir, "results_{n_left_out}_leftout.pkl")
+    )
     return results
 
 
@@ -450,7 +454,3 @@ all_results = Parallel(n_jobs=9, verbose=2, backend="loky")(
     delayed(over_all_runs)(n_left_out, subjects, data)
     for n_left_out in range(10, 100, 10)
 )
-
-
-# results = pd.DataFrame(results)
-# results.to_pickle(os.path.join(results_dir, "results.pkl"))
