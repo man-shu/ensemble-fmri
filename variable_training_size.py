@@ -113,7 +113,7 @@ def classify(clf, dummy_clf, train, test, X, Y, setting, count, n_left_out):
     result["setting"] = setting
 
     print(
-        f" {setting} split {count}",
+        f" {n_left_out}% left-out, {setting[:4]}, split {count}",
         f"{accuracy:.2f} / {dummy_accuracy:.2f}",
     )
 
