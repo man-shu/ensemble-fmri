@@ -112,11 +112,6 @@ def classify(clf, dummy_clf, train, test, X, Y, setting, count, n_left_out):
     result["train_size"] = len(train)
     result["setting"] = setting
 
-    print(
-        f" {n_left_out}% left-out, {setting[:4]}, split {count}",
-        f"{accuracy:.2f} / {dummy_accuracy:.2f}",
-    )
-
     return result
 
 
@@ -440,11 +435,17 @@ def over_all_runs(n_left_out, subjects, data):
             )
             results.append(conventional_result)
             results.append(stacked_result)
+
+            print(
+                f" {n_left_out}% left-out, {subject}, split {count} :",
+                f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {conventional_result['dummy_accuracy']:.2f}",
+            )
+
             count += 1
 
     results = pd.DataFrame(results)
     results.to_pickle(
-        os.path.join(results_dir, "results_{n_left_out}_leftout.pkl")
+        os.path.join(results_dir, f"results_{n_left_out}_leftout.pkl")
     )
     return results
 
@@ -454,3 +455,129 @@ all_results = Parallel(n_jobs=9, verbose=2, backend="loky")(
     delayed(over_all_runs)(n_left_out, subjects, data)
     for n_left_out in range(10, 100, 10)
 )
+df = pd.concat(all_results)
+sns.pointplot(data=df, x="train_size", y="accuracy", hue="setting")
+plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
+plt.ylabel("Accuracy")
+plt.xlabel("Training size")
+# plt.title("Within run")
+plt.savefig(
+    f"bench_results_20231006-110931/results_{time.strftime('%Y%m%d-%H%M%S')}.png"
+)
+plt.close()
+
+sns.boxplot(data=df, x="train_size", y="accuracy", hue="setting")
+plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
+plt.ylabel("Accuracy")
+plt.xlabel("Training size")
+# plt.title("Within run")
+plt.savefig(
+    f"bench_results_20231006-110931/box_results_{time.strftime('%Y%m%d-%H%M%S')}.png"
+)
+plt.close()
+
+
+# dimensionality reduction
+def reduce(X):
+    from sklearn.decomposition import PCA
+    from sklearn.decomposition import FastICA
+    from sklearn.decomposition import MiniBatchDictionaryLearning
+
+    # pca = PCA()
+    # ica = FastICA()
+    dl = MiniBatchDictionaryLearning(verbose=True)
+    # X_reduced = pca.fit_transform(X)
+    # X_reduced = ica.fit_transform(X)
+    X_reduced = dl.fit_transform(X)
+
+    return X_reduced
+
+
+def pca(n_left_out, subjects, data):
+    results = []
+    cv = ShuffleSplit(test_size=n_left_out / 100, random_state=0, n_splits=20)
+    for sub_i, subject in tqdm(
+        enumerate(subjects),
+        desc=f"{n_left_out}% left-out",
+        position=0,
+        leave=True,
+        total=len(subjects),
+    ):
+        print(f"Subject {subject}")
+        # select data for current subject
+        sub_mask = np.where(data["subjects"] == subject)[0]
+        X = data["responses"][sub_mask]
+        Y = data["conditions"][sub_mask]
+        groups = data["runs"][sub_mask]
+        # reduce dimensionality
+        X = reduce(X)
+        # create conventional classifier
+        clf = LinearSVC(dual="auto")
+        dummy_clf = DummyClassifier(strategy="most_frequent")
+        count = 0
+        _plot_cv_indices(
+            cv,
+            X,
+            Y,
+            groups,
+            n_left_out,
+            20,
+            results_dir,
+        )
+        for train, test in cv.split(X, Y, groups=groups):
+            pca_result = classify(
+                clf,
+                dummy_clf,
+                train,
+                test,
+                X,
+                Y,
+                "dictionary_learning",
+                count,
+                n_left_out,
+            )
+            results.append(pca_result)
+
+            print(
+                f" {n_left_out}% left-out, {subject}, split {count} :",
+                f"{pca_result['accuracy']:.2f} / {pca_result['dummy_accuracy']:.2f}",
+            )
+
+            count += 1
+
+    results = pd.DataFrame(results)
+    results.to_pickle(
+        os.path.join(results_dir, f"results_{n_left_out}_leftout.pkl")
+    )
+    return results
+
+
+# vary number of samples left out for testing
+all_pca_results = Parallel(n_jobs=9, verbose=2, backend="loky")(
+    delayed(pca)(n_left_out, subjects, data)
+    for n_left_out in range(10, 100, 10)
+)
+all_pca_results.extend(all_results)
+df = pd.concat(all_pca_results)
+
+sns.pointplot(data=df, x="train_size", y="accuracy", hue="setting")
+plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
+plt.ylabel("Accuracy")
+plt.xlabel("Training size")
+# plt.title("Within run")
+plt.savefig(
+    os.path.join(results_dir, f"results_{time.strftime('%Y%m%d-%H%M%S')}.png")
+)
+plt.close()
+
+sns.boxplot(data=df, x="train_size", y="accuracy", hue="setting")
+plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
+plt.ylabel("Accuracy")
+plt.xlabel("Training size")
+# plt.title("Within run")
+plt.savefig(
+    os.path.join(
+        results_dir, f"box_results_{time.strftime('%Y%m%d-%H%M%S')}.png"
+    )
+)
+plt.close()
