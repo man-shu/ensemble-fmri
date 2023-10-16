@@ -74,6 +74,7 @@ print("Concatenating data...")
 for dat in ["responses", "conditions", "runs", "subjects"]:
     data[dat] = np.concatenate(data[dat])
 
+subjects = np.unique(data["subjects"])
 
 #### pretraining for stacking ####
 fitted_classifiers = []
@@ -451,7 +452,7 @@ def over_all_runs(n_left_out, subjects, data):
 
 
 # vary number of samples left out for testing
-all_results = Parallel(n_jobs=9, verbose=2, backend="loky")(
+all_results = Parallel(n_jobs=6, verbose=2, backend="loky")(
     delayed(over_all_runs)(n_left_out, subjects, data)
     for n_left_out in range(10, 100, 10)
 )
@@ -461,9 +462,7 @@ plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
 plt.ylabel("Accuracy")
 plt.xlabel("Training size")
 # plt.title("Within run")
-plt.savefig(
-    f"bench_results_20231006-110931/results_{time.strftime('%Y%m%d-%H%M%S')}.png"
-)
+plt.savefig(os.path.join(results_dir, f"results_{start_time}.png"))
 plt.close()
 
 sns.boxplot(data=df, x="train_size", y="accuracy", hue="setting")
@@ -471,9 +470,7 @@ plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
 plt.ylabel("Accuracy")
 plt.xlabel("Training size")
 # plt.title("Within run")
-plt.savefig(
-    f"bench_results_20231006-110931/box_results_{time.strftime('%Y%m%d-%H%M%S')}.png"
-)
+plt.savefig(os.path.join(results_dir, f"box_results_{start_time}.png"))
 plt.close()
 
 
