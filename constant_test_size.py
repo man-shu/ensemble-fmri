@@ -205,7 +205,7 @@ def over_all_runs(subjects, data, classifier):
             classifier = LinearSVC(dual="auto")
         elif classifier == "RandomForest":
             classifier = RandomForestClassifier()
-        count= 0
+        count = 0
         _plot_cv_indices(
             cv,
             X,
@@ -235,9 +235,9 @@ def over_all_runs(subjects, data, classifier):
             # create conventional classifier
             clf = classifier
             dummy_clf = DummyClassifier(strategy="most_frequent")
-            cv2 = ShuffleSplit(test_size=(60 / len(data)) / 100, random_state=0, n_splits=20)
             for n_left_out in range(10, 100, 10):
-                train_, _ = train_test_split(X[train], test_size=n_left_out / 100, random_state=0, stratify=Y[train])
+                indices = np.arange(X.shape[0])
+                train_, _ = train_test_split(indices[train], test_size=n_left_out / 100, random_state=0, stratify=Y[train])
                 conventional_result = classify(
                     clf,
                     dummy_clf,
@@ -270,7 +270,7 @@ def over_all_runs(subjects, data, classifier):
                     f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {conventional_result['dummy_accuracy']:.2f}",
                 )
 
-                count += 1
+            count += 1
 
     results = pd.DataFrame(results)
     results.to_pickle(
