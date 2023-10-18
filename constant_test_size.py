@@ -10,7 +10,7 @@ from sklearn.model_selection import (
     LeaveOneGroupOut,
     StratifiedShuffleSplit,
     ShuffleSplit,
-    train_test_split
+    train_test_split,
 )
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
@@ -69,15 +69,17 @@ for subject in tqdm(subjects):
     data["conditions"].append(conditions)
     data["runs"].append(runs)
     data["subjects"].append(subs)
+print("Done!")
 
 print("Concatenating data...")
 # concatenate data
 for dat in ["responses", "conditions", "runs", "subjects"]:
     data[dat] = np.concatenate(data[dat])
-
+print("Done!")
 
 subjects = np.unique(data["subjects"])
 
+print("Pretraining classifiers...")
 #### pretraining for stacking ####
 fitted_classifiers = []
 dummy_fitted_classifiers = []
@@ -94,10 +96,13 @@ for subject in tqdm(subjects):
     # save classifier
     fitted_classifiers.append((f"{subject}", clf))
     dummy_fitted_classifiers.append((f"{subject}", dummy_clf))
+print("Done!")
 
 
 # classification function
-def classify(clf, dummy_clf, train, test, X, Y, setting, count, n_left_out, classifier):
+def classify(
+    clf, dummy_clf, train, test, X, Y, setting, count, n_left_out, classifier
+):
     result = {}
     clf = clf.fit(X[train], Y[train])
     dummy_clf = dummy_clf.fit(X[train], Y[train])
@@ -187,102 +192,130 @@ def _plot_cv_indices(
     plt.close()
 
 
-def over_all_runs(subjects, data, classifier):
+def decode(
+    subject,
+    subject_i,
+    data,
+    classifier,
+    fitted_classifiers,
+    dummy_fitted_classifiers,
+    results_dir,
+):
     results = []
-    for sub_i, subject in tqdm(enumerate(subjects),
-        desc=f"{classifier}",
+    # select data for current subject
+    sub_mask = np.where(data["subjects"] == subject)[0]
+    X = data["responses"][sub_mask]
+    Y = data["conditions"][sub_mask]
+    groups = data["runs"][sub_mask]
+    cv = ShuffleSplit(test_size=0.6, random_state=0, n_splits=20)
+    if classifier == "LinearSVC":
+        clf = LinearSVC(dual="auto")
+    elif classifier == "RandomForest":
+        clf = RandomForestClassifier()
+    count = 0
+    _plot_cv_indices(
+        cv,
+        X,
+        Y,
+        groups,
+        subject,
+        20,
+        results_dir,
+    )
+    for train, test in tqdm(
+        cv.split(X, Y, groups=groups),
+        desc=f"{subject}",
         position=0,
         leave=True,
-        total=len(subjects),
+        total=cv.get_n_splits(),
     ):
-        # select data for current subject
-        sub_mask = np.where(data["subjects"] == subject)[0]
-        X = data["responses"][sub_mask]
-        Y = data["conditions"][sub_mask]
-        groups = data["runs"][sub_mask]
-        cv = ShuffleSplit(test_size=(60 / len(data)) / 100, random_state=0, n_splits=20)
-        if classifier == "LinearSVC":
-            classifier = LinearSVC(dual="auto")
-        elif classifier == "RandomForest":
-            classifier = RandomForestClassifier()
-        count = 0
-        _plot_cv_indices(
-            cv,
-            X,
-            Y,
-            groups,
-            subject,
-            20,
-            results_dir,
+        # remove current subject from fitted classifiers
+        fitted_classifiers_ = fitted_classifiers.copy()
+        fitted_classifiers_.pop(subject_i)
+        dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
+        dummy_fitted_classifiers_.pop(subject_i)
+        # create stacked classifier
+        stacked_clf = StackingClassifier(
+            fitted_classifiers_,
+            final_estimator=classifier,
+            cv="prefit",
         )
-        for train, test in cv.split(X, Y, groups=groups):
-            # remove current subject from fitted classifiers
-            fitted_classifiers_ = fitted_classifiers.copy()
-            fitted_classifiers_.pop(sub_i)
-            dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
-            dummy_fitted_classifiers_.pop(sub_i)
-            # create stacked classifier
-            stacked_clf = StackingClassifier(
-                fitted_classifiers_,
-                final_estimator=classifier,
-                cv="prefit",
+        dummy_stacked_clf = StackingClassifier(
+            dummy_fitted_classifiers_,
+            final_estimator=DummyClassifier(strategy="most_frequent"),
+            cv="prefit",
+        )
+        # create conventional classifier
+        dummy_clf = DummyClassifier(strategy="most_frequent")
+        for n_left_out in range(10, 100, 10):
+            indices = np.arange(X.shape[0])
+            train_, _ = train_test_split(
+                indices[train],
+                test_size=n_left_out / 100,
+                random_state=0,
+                stratify=Y[train],
             )
-            dummy_stacked_clf = StackingClassifier(
-                dummy_fitted_classifiers_,
-                final_estimator=DummyClassifier(strategy="most_frequent"),
-                cv="prefit",
+            conventional_result = classify(
+                clf,
+                dummy_clf,
+                train_,
+                test,
+                X,
+                Y,
+                "conventional",
+                count,
+                n_left_out,
+                classifier,
             )
-            # create conventional classifier
-            clf = classifier
-            dummy_clf = DummyClassifier(strategy="most_frequent")
-            for n_left_out in range(10, 100, 10):
-                indices = np.arange(X.shape[0])
-                train_, _ = train_test_split(indices[train], test_size=n_left_out / 100, random_state=0, stratify=Y[train])
-                conventional_result = classify(
-                    clf,
-                    dummy_clf,
-                    train_,
-                    test,
-                    X,
-                    Y,
-                    "conventional",
-                    count,
-                    n_left_out,
-                    classifier,
-                )
-                stacked_result = classify(
-                    stacked_clf,
-                    dummy_stacked_clf,
-                    train_,
-                    test,
-                    X,
-                    Y,
-                    "stacked",
-                    count,
-                    n_left_out,
-                    classifier
-                )
-                results.append(conventional_result)
-                results.append(stacked_result)
+            stacked_result = classify(
+                stacked_clf,
+                dummy_stacked_clf,
+                train_,
+                test,
+                X,
+                Y,
+                "stacked",
+                count,
+                n_left_out,
+                classifier,
+            )
+            results.append(conventional_result)
+            results.append(stacked_result)
 
-                print(
-                    f"{classifier} {n_left_out}% left-out, {subject}, split {count} :",
-                    f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {conventional_result['dummy_accuracy']:.2f}",
-                )
+            print(
+                f"{classifier} {n_left_out}% left-out, {subject}, split {count} :",
+                f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {conventional_result['dummy_accuracy']:.2f}",
+            )
 
-            count += 1
+        count += 1
 
     results = pd.DataFrame(results)
     results.to_pickle(
-        os.path.join(results_dir, f"results_clf_{clf}_{subject}.pkl")
+        os.path.join(results_dir, f"results_clf_{classifier}_{subject}.pkl")
     )
     return results
 
 
+def generate_sub_clf_combinations(
+    subjects, classifiers=["LinearSVC", "RandomForest"]
+):
+    for subject_i, subject in enumerate(subjects):
+        for clf in classifiers:
+            yield subject, subject_i, clf
+
+
 # vary number of samples left out for testing
-all_results = Parallel(n_jobs=2, verbose=2, backend="loky")(
-    delayed(over_all_runs)(subjects, data, classifier)
-    for classifier in ["LinearSVC", "RandomForest"]
+all_results = Parallel(n_jobs=26, verbose=2, backend="loky")(
+    delayed(decode)(
+        subject,
+        subject_i,
+        data,
+        clf,
+        fitted_classifiers,
+        dummy_fitted_classifiers,
+        results_dir,
+    )
+    for subject, subject_i, clf in generate_sub_clf_combinations(subjects)
 )
 df = pd.concat(all_results)
 df["setting_classifier"] = df["setting"] + "_" + df["classifier"]
