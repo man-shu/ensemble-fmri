@@ -2,30 +2,28 @@ import pandas as pd
 from nilearn import image
 import numpy as np
 import os
+from sklearn.base import clone
 from sklearn.svm import LinearSVC
 from sklearn.dummy import DummyClassifier
 from sklearn.model_selection import (
-    GroupShuffleSplit,
-    LeavePGroupsOut,
-    LeaveOneGroupOut,
-    StratifiedShuffleSplit,
     ShuffleSplit,
     train_test_split,
 )
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
-import ibc_public.utils_data
 import seaborn as sns
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 import time
-import pickle
 from sklearn.ensemble import StackingClassifier, RandomForestClassifier
+import ibc_public.utils_data
+
 
 # input data root path
 data_dir = "rsvp_trial"
 data_resolution = "3mm"  # or 1_5mm
 nifti_dir = os.path.join(data_dir, data_resolution)
+classifiers = ["LinearSVC", "RandomForest"]
 
 # output results path
 start_time = time.strftime("%Y%m%d-%H%M%S")
@@ -44,7 +42,6 @@ subjects_sessions = ibc_public.utils_data.get_subject_session("rsvp-language")
 subjects = np.array(
     [subject for subject, session in subjects_sessions], dtype="object"
 )
-subjects = np.unique(subjects)
 # create empty dictionary to store data
 data = dict(responses=[], conditions=[], runs=[], subjects=[])
 # load data
@@ -52,8 +49,9 @@ print("Loading data...")
 for subject in tqdm(subjects):
     try:
         response = image.load_img(os.path.join(nifti_dir, f"{subject}.nii.gz"))
-        response.shape
-    except:
+        print(response.shape)
+    except Exception as error:
+        print(error)
         print(f"{subject} not found")
         continue
     response = response.get_fdata()
@@ -104,8 +102,8 @@ def classify(
     clf, dummy_clf, train, test, X, Y, setting, count, n_left_out, classifier
 ):
     result = {}
-    clf = clf.fit(X[train], Y[train])
-    dummy_clf = dummy_clf.fit(X[train], Y[train])
+    clf.fit(X[train], Y[train])
+    dummy_clf.fit(X[train], Y[train])
     prediction = clf.predict(X[test])
     dummy_prediction = dummy_clf.predict(X[test])
     accuracy = accuracy_score(Y[test], prediction)
@@ -207,7 +205,8 @@ def decode(
     X = data["responses"][sub_mask]
     Y = data["conditions"][sub_mask]
     groups = data["runs"][sub_mask]
-    cv = ShuffleSplit(test_size=0.06, random_state=0, n_splits=20)
+    cv = ShuffleSplit(test_size=0.10, random_state=0, n_splits=20)
+    # create conventional classifier
     if classifier == "LinearSVC":
         clf = LinearSVC(dual="auto")
     elif classifier == "RandomForest":
@@ -229,32 +228,19 @@ def decode(
         leave=True,
         total=cv.get_n_splits(),
     ):
-        # remove current subject from fitted classifiers
-        fitted_classifiers_ = fitted_classifiers.copy()
-        fitted_classifiers_.pop(subject_i)
-        dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
-        dummy_fitted_classifiers_.pop(subject_i)
-        # create stacked classifier
-        stacked_clf = StackingClassifier(
-            fitted_classifiers_,
-            final_estimator=clf,
-            cv="prefit",
-        )
-        dummy_stacked_clf = StackingClassifier(
-            dummy_fitted_classifiers_,
-            final_estimator=DummyClassifier(strategy="most_frequent"),
-            cv="prefit",
-        )
-        # create conventional classifier
-        dummy_clf = DummyClassifier(strategy="most_frequent")
-        for n_left_out in range(10, 100, 10):
-            indices = np.arange(X.shape[0])
-            train_, _ = train_test_split(
-                indices[train],
-                test_size=n_left_out / 100,
-                random_state=0,
-                stratify=Y[train],
-            )
+        for n_left_out in range(0, 100, 10):
+            if n_left_out == 0:
+                train_ = train.copy()
+            else:
+                indices = np.arange(X.shape[0])
+                train_, _ = train_test_split(
+                    indices[train],
+                    test_size=n_left_out / 100,
+                    random_state=0,
+                    stratify=Y[train],
+                )
+            clf = clone(clf)
+            dummy_clf = DummyClassifier(strategy="most_frequent")
             conventional_result = classify(
                 clf,
                 dummy_clf,
@@ -266,6 +252,23 @@ def decode(
                 count,
                 n_left_out,
                 classifier,
+            )
+            # remove current subject from fitted classifiers
+            fitted_classifiers_ = fitted_classifiers.copy()
+            fitted_classifiers_.pop(subject_i)
+            print(fitted_classifiers_)
+            dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
+            dummy_fitted_classifiers_.pop(subject_i)
+            # create stacked classifier
+            stacked_clf = StackingClassifier(
+                fitted_classifiers_,
+                final_estimator=clone(clf),
+                cv="prefit",
+            )
+            dummy_stacked_clf = StackingClassifier(
+                dummy_fitted_classifiers_,
+                final_estimator=DummyClassifier(strategy="most_frequent"),
+                cv="prefit",
             )
             stacked_result = classify(
                 stacked_clf,
@@ -284,7 +287,7 @@ def decode(
 
             print(
                 f"{classifier} {n_left_out}% left-out, {subject}, split {count} :",
-                f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {conventional_result['dummy_accuracy']:.2f}",
+                f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {stacked_result['dummy_accuracy']:.2f}, {fitted_classifiers_}",
             )
 
         count += 1
@@ -296,16 +299,16 @@ def decode(
     return results
 
 
-def generate_sub_clf_combinations(
-    subjects, classifiers=["LinearSVC", "RandomForest"]
-):
+def generate_sub_clf_combinations(subjects, classifiers):
     for subject_i, subject in enumerate(subjects):
         for clf in classifiers:
             yield subject, subject_i, clf
 
 
 # vary number of samples left out for testing
-all_results = Parallel(n_jobs=26, verbose=2, backend="loky")(
+all_results = Parallel(
+    n_jobs=len(subjects) * len(classifiers), verbose=2, backend="loky"
+)(
     delayed(decode)(
         subject,
         subject_i,
@@ -315,8 +318,26 @@ all_results = Parallel(n_jobs=26, verbose=2, backend="loky")(
         dummy_fitted_classifiers,
         results_dir,
     )
-    for subject, subject_i, clf in generate_sub_clf_combinations(subjects)
+    for subject, subject_i, clf in generate_sub_clf_combinations(
+        subjects, classifiers
+    )
 )
+# all_results = []
+# for subject, subject_i, clf in generate_sub_clf_combinations(
+#     subjects, classifiers
+# ):
+#     print(subject, subject_i)
+#     result = decode(
+#         subject,
+#         subject_i,
+#         data,
+#         clf,
+#         fitted_classifiers,
+#         dummy_fitted_classifiers,
+#         results_dir,
+#     )
+#     all_results.append(result)
+
 df = pd.concat(all_results)
 df["setting_classifier"] = df["setting"] + "_" + df["classifier"]
 sns.pointplot(data=df, x="train_size", y="accuracy", hue="setting_classifier")
