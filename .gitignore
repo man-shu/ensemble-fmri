@@ -5,3 +5,4 @@ data/nsd/curated_3mm
 data/nsd/info
 data/rsvp_trial/1_5mm
 data/rsvp_trial/3mm
+results/*/*.pkl
