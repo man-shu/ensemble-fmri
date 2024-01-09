@@ -10,4 +10,4 @@ Within each cohort, we vary the size of the training set in increments of 10% of
 
 In a conventional decoding setting, a classifier is trained to learn the mapping between stimuli labels and features in the voxel space. 
 
-Here, with the stacking approach we train a classifier to learn the mapping between true stimuli labels and the stimuli predictions from classifiers pre-trained on other subjects’ voxel-space features. This converts a high-dimensional problem (where the number of features is the number of voxels) to a low-dimensional one (where the number of features is one minus the number of subjects in the cohort).
+In the stacking approach we train a classifier to learn the mapping between true stimuli labels and the stimuli predictions from classifiers pre-trained on other subjects’ voxel-space features. This converts a high-dimensional problem (where the number of features is the number of voxels) to a low-dimensional one (where the number of features is one minus the number of subjects in the cohort).
