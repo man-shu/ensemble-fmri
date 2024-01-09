@@ -111,7 +111,7 @@ def classify(
     result["accuracy"] = accuracy
     result["dummy_accuracy"] = dummy_accuracy
     result["subject"] = subject
-    result["true"] = y[test]
+    result["true"] = Y[test]
     result["predicted"] = prediction
     result["dummy_predicted"] = dummy_prediction
     result["left_out"] = n_left_out
@@ -256,7 +256,6 @@ def decode(
             # remove current subject from fitted classifiers
             fitted_classifiers_ = fitted_classifiers.copy()
             fitted_classifiers_.pop(subject_i)
-            print(fitted_classifiers_)
             dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
             dummy_fitted_classifiers_.pop(subject_i)
             # create stacked classifier
@@ -287,7 +286,7 @@ def decode(
 
             print(
                 f"{classifier} {n_left_out}% left-out, {subject}, split {count} :",
-                f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {stacked_result['dummy_accuracy']:.2f}, {fitted_classifiers_}",
+                f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {stacked_result['dummy_accuracy']:.2f}",
             )
 
         count += 1

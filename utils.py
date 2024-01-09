@@ -1,5 +1,5 @@
 import pandas as pd
-from nilearn import maskers
+from nilearn import maskers, image
 import numpy as np
 import os
 from sklearn.base import clone
@@ -7,9 +7,10 @@ from sklearn.svm import LinearSVC
 from sklearn.dummy import DummyClassifier
 from sklearn.model_selection import (
     ShuffleSplit,
+    StratifiedShuffleSplit,
     train_test_split,
 )
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from joblib import dump, load
@@ -28,13 +29,17 @@ def _get_labels(subject, parc, nifti_dir):
     elif label_ext == ".npy":
         conditions = np.load(label_file, allow_pickle=True)
     # get run labels
-    run_file = glob(os.path.join(nifti_dir, f"{subject}_runs*"))[0]
-    _, run_ext = os.path.splitext(run_file)
-    if run_ext == ".csv":
-        runs = pd.read_csv(run_file, header=None)
-        runs = runs[0].values
-    elif run_ext == ".npy":
-        runs = np.load(run_file, allow_pickle=True)
+    run_file = glob(os.path.join(nifti_dir, f"{subject}_runs*"))
+    if len(run_file) == 0:
+        runs = np.ones_like(conditions)
+    else:
+        run_file = run_file[0]
+        _, run_ext = os.path.splitext(run_file)
+        if run_ext == ".csv":
+            runs = pd.read_csv(run_file, header=None)
+            runs = runs[0].values
+        elif run_ext == ".npy":
+            runs = np.load(run_file, allow_pickle=True)
     # get number of trials
     num_trials = parc.shape[0]
     subs = np.repeat(subject, num_trials)
@@ -57,9 +62,22 @@ def parcellate(
     if os.path.exists(parc_file):
         parc = np.load(parc_file)
     else:
-        masker = maskers.NiftiMapsMasker(
-            maps_img=atlas.maps, memory=DATA_ROOT, verbose=11, n_jobs=20
-        )
+        if atlas.name == "wholebrain":
+            ref_img = image.index_img(img, 0)
+            ref_img_shape = ref_img.shape
+            wholebrain_mask = image.new_img_like(
+                ref_img, np.ones(ref_img_shape)
+            )
+            masker = maskers.NiftiMasker(
+                mask_img=wholebrain_mask,
+                memory=DATA_ROOT,
+                verbose=11,
+                n_jobs=20,
+            )
+        else:
+            masker = maskers.NiftiMapsMasker(
+                maps_img=atlas.maps, memory=DATA_ROOT, verbose=11, n_jobs=20
+            )
         parc = masker.fit_transform(img)
         np.save(parc_file, parc)
     conditions, runs, subs = _get_labels(subject, parc, nifti_dir)
@@ -71,8 +89,8 @@ def parcellate(
 
 
 #### pretraining for stacking ####
-def pretrain(subject, data, dummy, data_dir):
-    pretrain_dir = os.path.join(data_dir, "pretrain")
+def pretrain(subject, data, dummy, data_dir, atlas):
+    pretrain_dir = os.path.join(data_dir, f"pretrain_{atlas.name}")
     os.makedirs(pretrain_dir, exist_ok=True)
     if dummy:
         file_id = "dummy"
@@ -118,6 +136,10 @@ def _classify(
     dummy_accuracy = accuracy_score(Y[test], dummy_prediction)
     result["accuracy"] = accuracy
     result["dummy_accuracy"] = dummy_accuracy
+    result["balanced_accuracy"] = balanced_accuracy_score(Y[test], prediction)
+    result["dummy_balanced_accuracy"] = balanced_accuracy_score(
+        Y[test], dummy_prediction
+    )
     result["subject"] = subject
     result["true"] = Y[test]
     result["predicted"] = prediction
@@ -216,7 +238,7 @@ def decode(
     X = data["responses"][sub_mask]
     Y = data["conditions"][sub_mask]
     groups = data["runs"][sub_mask]
-    cv = ShuffleSplit(test_size=0.10, random_state=0, n_splits=20)
+    cv = StratifiedShuffleSplit(test_size=0.10, random_state=0, n_splits=20)
     # create conventional classifier
     if classifier == "LinearSVC":
         clf = LinearSVC(dual="auto")
@@ -297,7 +319,7 @@ def decode(
 
             print(
                 f"{classifier} {n_left_out}% left-out, {subject}, split {count} :",
-                f"{conventional_result['accuracy']:.2f} | {stacked_result['accuracy']:.2f} / {stacked_result['dummy_accuracy']:.2f}",
+                f"{conventional_result['balanced_accuracy']:.2f} | {stacked_result['balanced_accuracy']:.2f} / {stacked_result['dummy_balanced_accuracy']:.2f}",
             )
 
         count += 1

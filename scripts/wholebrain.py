@@ -1,5 +1,4 @@
 import pandas as pd
-from nilearn import datasets
 import numpy as np
 import os
 import seaborn as sns
@@ -9,18 +8,20 @@ import time
 from glob import glob
 import importlib.util
 import sys
+from sklearn.utils import Bunch
+from utils import parcellate, pretrain, decode, generate_sub_clf_combinations
 
 DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/data/"
 OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
 
 # load local utility functions
-spec = importlib.util.spec_from_file_location(
-    "utils",
-    os.path.join(OUT_ROOT, "utils.py"),
-)
-utils = importlib.util.module_from_spec(spec)
-sys.modules["utils"] = utils
-spec.loader.exec_module(utils)
+# spec = importlib.util.spec_from_file_location(
+#     "utils",
+#     os.path.join(OUT_ROOT, "utils.py"),
+# )
+# utils = importlib.util.module_from_spec(spec)
+# sys.modules["utils"] = utils
+# spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
 # datas = [
@@ -38,7 +39,7 @@ datas = [
     # "bold5000_fold3",
     # "bold5000_fold4",
     "forrest",
-    "neuromod",
+    # "neuromod",
     "rsvp",
 ]
 classifiers = ["LinearSVC", "RandomForest"]
@@ -49,11 +50,9 @@ for dataset in datas:
     data_resolution = "3mm"  # or 1_5mm
     nifti_dir = os.path.join(data_dir, data_resolution)
 
-    # get difumo atlas
-    atlas = datasets.fetch_atlas_difumo(
-        dimension=1024, resolution_mm=3, data_dir=DATA_ROOT
-    )
-    atlas["name"] = "difumo"
+    # create fake, empty atlas object
+    atlas = Bunch()
+    atlas.name = "wholebrain"
 
     # output results path
     start_time = time.strftime("%Y%m%d-%H%M%S")
@@ -67,7 +66,7 @@ for dataset in datas:
 
     print(f"\nParcellating {dataset}...")
     data = Parallel(n_jobs=len(subjects), verbose=2, backend="loky")(
-        delayed(utils.parcellate)(
+        delayed(parcellate)(
             imgs[i],
             subject,
             atlas,
@@ -92,7 +91,7 @@ for dataset in datas:
     dummy_fitted_classifiers = Parallel(
         n_jobs=len(subjects), verbose=2, backend="loky"
     )(
-        delayed(utils.pretrain)(
+        delayed(pretrain)(
             subject=subject,
             data=data,
             dummy=True,
@@ -106,9 +105,9 @@ for dataset in datas:
     fitted_classifiers = Parallel(
         n_jobs=len(subjects), verbose=11, backend="loky"
     )(
-        delayed(utils.pretrain)(
-            subject=subject,
-            data=data,
+        delayed(pretrain)(
+            subject,
+            data,
             dummy=False,
             data_dir=data_dir,
             atlas=atlas,
@@ -120,7 +119,7 @@ for dataset in datas:
     all_results = Parallel(
         n_jobs=len(subjects) * len(classifiers), verbose=2, backend="loky"
     )(
-        delayed(utils.decode)(
+        delayed(decode)(
             subject,
             subject_i,
             data,
@@ -130,7 +129,7 @@ for dataset in datas:
             results_dir,
             dataset,
         )
-        for subject, subject_i, clf in utils.generate_sub_clf_combinations(
+        for subject, subject_i, clf in generate_sub_clf_combinations(
             subjects, classifiers
         )
     )
@@ -153,6 +152,7 @@ for dataset in datas:
     print(f"\nPlotting results for {dataset}...")
     df = pd.concat(all_results)
     df["setting_classifier"] = df["setting"] + "_" + df["classifier"]
+
     sns.pointplot(
         data=df, x="train_size", y="accuracy", hue="setting_classifier"
     )
@@ -169,22 +169,6 @@ for dataset in datas:
     plt.ylabel("Accuracy")
     plt.xlabel("Training size")
     plt.savefig(os.path.join(results_dir, f"box_accuracy_{start_time}.png"))
-    plt.close()
-
-    sns.pointplot(
-        data=df,
-        x="train_size",
-        y="balanced_accuracy",
-        hue="setting_classifier",
-    )
-    plt.axhline(
-        y=df["dummy_balanced_accuracy"].mean(), color="k", linestyle="--"
-    )
-    plt.ylabel("Balanced Accuracy")
-    plt.xlabel("Training size")
-    plt.savefig(
-        os.path.join(results_dir, f"balanced_accuracy_{start_time}.png")
-    )
     plt.close()
 
     sns.pointplot(
