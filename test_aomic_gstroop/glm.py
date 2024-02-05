@@ -74,7 +74,7 @@ def trial_wise_zmaps_for_sub(
             mask_img=mask,
             t_r=t_r,
             high_pass=1.0 / 128,
-            smoothing_fwhm=10,
+            smoothing_fwhm=5,
         )
         confounds, _ = load_confounds(row["fmri"])
         dmtx = make_dmtx(
