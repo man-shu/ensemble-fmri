@@ -187,7 +187,9 @@ if __name__ == "__main__":
 
     # voxels are already 3mm, 3mm x 3mm x 3.3mm to be exact
     # so we don't need to resample
-    three_mm_dir = os.path.join(ROOT, "test_glm", "aomic_gstroop", "3mm")
+    three_mm_dir = os.path.join(
+        ROOT, "test_aomic_gstroop", "aomic_gstroop", "3mm"
+    )
     os.makedirs(three_mm_dir, exist_ok=True)
 
     ## get all fmri, events, mask paths
@@ -221,7 +223,7 @@ if __name__ == "__main__":
     ]
 
     ## keep only first n subjects
-    cutoff = 1
+    cutoff = 10
     subjects = subjects[:cutoff]
     fmri = fmri[:cutoff]
     events = events[:cutoff]
@@ -270,4 +272,4 @@ if __name__ == "__main__":
         )
 
     # do a glm for full run
-    localiser_contrast(df, "sub-0001")
+    # localiser_contrast(df, "sub-0001")

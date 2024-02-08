@@ -5,6 +5,7 @@ import os
 from sklearn.base import clone
 from sklearn.svm import LinearSVC
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.linear_model import LogisticRegression
 from sklearn.dummy import DummyClassifier
 from sklearn.model_selection import (
     ShuffleSplit,
@@ -41,8 +42,8 @@ from sklearn.feature_selection import SelectPercentile, f_classif
 from sklearn.pipeline import Pipeline
 
 
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/test_glm/"
-OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023/test_glm"
+DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/test_aomic_gstroop/"
+OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023/test_aomic_gstroop"
 dataset = "aomic_gstroop"
 
 # input data root path
@@ -74,70 +75,76 @@ os.makedirs(results_dir, exist_ok=True)
 imgs = glob(os.path.join(nifti_dir, "*.nii.gz"))
 subjects = [os.path.basename(img).split(".")[0] for img in imgs]
 
-# select only first subject
-img = imgs[0]
-subject = subjects[0]
-
 # empty dictionary to store data
 data = dict(responses=[], conditions=[], runs=[], subjects=[])
 
 # store masked images
 masked_dir = os.path.join(data_dir, atlas.name)
 os.makedirs(masked_dir, exist_ok=True)
-masked_file = os.path.join(masked_dir, f"{subject}.npy")
 mask = load_mni152_gm_mask(resolution=3)
 
-# mask the image
-if os.path.exists(masked_file):
-    masked = np.load(masked_file)
-else:
-    if atlas.name == "wholebrain":
-        masker = maskers.NiftiMasker(
-            mask_img=mask,
-            verbose=11,
-        )
+### combine two subjects data
+combined_responses = []
+combined_conditions = []
+combined_runs = []
+combined_subjects = []
+for img, subject in zip(imgs, subjects):
+    masked_file = os.path.join(masked_dir, f"{subject}.npy")
+    # mask the image
+    if os.path.exists(masked_file):
+        masked = np.load(masked_file)
     else:
-        masker = maskers.NiftiMapsMasker(
-            maps_img=atlas["maps"],
-            verbose=11,
-        )
-    masked = masker.fit_transform(img)
-    np.save(masked_file, masked)
+        if atlas.name == "wholebrain":
+            masker = maskers.NiftiMasker(
+                mask_img=mask,
+                verbose=11,
+            )
+        else:
+            masker = maskers.NiftiMapsMasker(
+                maps_img=atlas["maps"],
+                verbose=11,
+            )
+        masked = masker.fit_transform(img)
+        np.save(masked_file, masked)
 
+    # get class labels
+    label_file = glob(os.path.join(nifti_dir, f"{subject}_labels*"))[0]
+    _, label_ext = os.path.splitext(label_file)
+    if label_ext == ".csv":
+        conditions = pd.read_csv(label_file, header=None)
+        conditions = conditions[0].values
+    elif label_ext == ".npy":
+        conditions = np.load(label_file, allow_pickle=True)
+    # get run labels
+    run_file = glob(os.path.join(nifti_dir, f"{subject}_runs*"))
+    if len(run_file) == 0:
+        runs = np.ones_like(conditions)
+    else:
+        run_file = run_file[0]
+        _, run_ext = os.path.splitext(run_file)
+        if run_ext == ".csv":
+            runs = pd.read_csv(run_file, header=None)
+            runs = runs[0].values
+        elif run_ext == ".npy":
+            runs = np.load(run_file, allow_pickle=True)
+    # get number of trials
+    num_trials = masked.shape[0]
+    subs = np.repeat(subject, num_trials)
 
-# get class labels
-label_file = glob(os.path.join(nifti_dir, f"{subject}_labels*"))[0]
-_, label_ext = os.path.splitext(label_file)
-if label_ext == ".csv":
-    conditions = pd.read_csv(label_file, header=None)
-    conditions = conditions[0].values
-elif label_ext == ".npy":
-    conditions = np.load(label_file, allow_pickle=True)
-# get run labels
-run_file = glob(os.path.join(nifti_dir, f"{subject}_runs*"))
-if len(run_file) == 0:
-    runs = np.ones_like(conditions)
-else:
-    run_file = run_file[0]
-    _, run_ext = os.path.splitext(run_file)
-    if run_ext == ".csv":
-        runs = pd.read_csv(run_file, header=None)
-        runs = runs[0].values
-    elif run_ext == ".npy":
-        runs = np.load(run_file, allow_pickle=True)
-# get number of trials
-num_trials = masked.shape[0]
-subs = np.repeat(subject, num_trials)
+    combined_responses.append(masked)
+    combined_conditions.append(conditions)
+    combined_runs.append(runs)
+    combined_subjects.append(subs)
 
 # store data
-data["responses"] = masked
-data["conditions"] = conditions
-data["runs"] = runs
-data["subjects"] = subs
+data["responses"] = np.concatenate(combined_responses)
+data["conditions"] = np.concatenate(combined_conditions)
+data["runs"] = np.concatenate(combined_runs)
+data["subjects"] = np.concatenate(combined_subjects)
 
 N_JOBS = 50
 
-cv = StratifiedShuffleSplit(n_splits=200, test_size=0.20, random_state=42)
+cv = StratifiedShuffleSplit(n_splits=50, test_size=0.20, random_state=42)
 # evaluation metrics
 scoring = [
     "accuracy",
@@ -159,6 +166,9 @@ anova_svc = Pipeline(
 #         ("lda", LinearDiscriminantAnalysis()),
 #     ]
 # )
+anova_logistic = Pipeline(
+    [("anova", feature_selection), ("logistic", LogisticRegression())]
+)
 anova_dummy = Pipeline(
     [("anova", feature_selection), ("dummy", DummyClassifier())]
 )
@@ -167,7 +177,6 @@ fitted_svc = cross_validate(
     anova_svc,
     X=data["responses"],
     y=data["conditions"],
-    groups=data["runs"],
     n_jobs=50,
     cv=cv,
     scoring=scoring,
@@ -180,7 +189,6 @@ fitted_dummy = cross_validate(
     anova_dummy,
     X=data["responses"],
     y=data["conditions"],
-    groups=data["runs"],
     n_jobs=50,
     cv=cv,
     scoring=scoring,
@@ -190,7 +198,7 @@ fitted_dummy = cross_validate(
 )
 
 print(
-    f"{np.mean(fitted_svc['test_accuracy'])} | {np.mean(fitted_dummy['test_accuracy'])}"
+    f"{np.mean(fitted_svc['test_balanced_accuracy'])} | {np.mean(fitted_dummy['test_balanced_accuracy'])}"
 )
 
 # retrieve the pipeline fitted on the first cross-validation fold and its SVC

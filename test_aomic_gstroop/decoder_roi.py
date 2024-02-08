@@ -37,8 +37,8 @@ from nilearn.plotting import (
     plot_stat_map,
 )
 
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/test_glm/"
-OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023/test_glm"
+DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/test_aomic_gstroop/"
+OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023/test_aomic_gstroop"
 dataset = "aomic_gstroop"
 
 # input data root path
@@ -50,40 +50,50 @@ nifti_dir = os.path.join(data_dir, data_resolution)
 imgs = glob(os.path.join(nifti_dir, "*.nii.gz"))
 subjects = [os.path.basename(img).split(".")[0] for img in imgs]
 
-# select only first subject
-img = imgs[0]
-subject = subjects[0]
-
 # empty dictionary to store data
 data = dict(responses=[], conditions=[], runs=[], subjects=[])
 
 # load roi, created from using roi neurovault.py
 roi = image.load_img(os.path.join(OUT_ROOT, "roi_neurovault.nii.gz"))
 
-# get class labels
-label_file = glob(os.path.join(nifti_dir, f"{subject}_labels*"))[0]
-_, label_ext = os.path.splitext(label_file)
-if label_ext == ".csv":
-    conditions = pd.read_csv(label_file, header=None)
-    conditions = conditions[0].values
-elif label_ext == ".npy":
-    conditions = np.load(label_file, allow_pickle=True)
-# get run labels
-run_file = glob(os.path.join(nifti_dir, f"{subject}_runs*"))
-if len(run_file) == 0:
-    runs = np.ones_like(conditions)
-else:
-    run_file = run_file[0]
-    _, run_ext = os.path.splitext(run_file)
-    if run_ext == ".csv":
-        runs = pd.read_csv(run_file, header=None)
-        runs = runs[0].values
-    elif run_ext == ".npy":
-        runs = np.load(run_file, allow_pickle=True)
+### combine two subjects data
+combined_responses = []
+combined_conditions = []
+combined_runs = []
+combined_subjects = []
+for img, subject in zip(imgs, subjects):
+    # get class labels
+    label_file = glob(os.path.join(nifti_dir, f"{subject}_labels*"))[0]
+    _, label_ext = os.path.splitext(label_file)
+    if label_ext == ".csv":
+        conditions = pd.read_csv(label_file, header=None)
+        conditions = conditions[0].values
+    elif label_ext == ".npy":
+        conditions = np.load(label_file, allow_pickle=True)
+    # get run labels
+    run_file = glob(os.path.join(nifti_dir, f"{subject}_runs*"))
+    if len(run_file) == 0:
+        runs = np.ones_like(conditions)
+    else:
+        run_file = run_file[0]
+        _, run_ext = os.path.splitext(run_file)
+        if run_ext == ".csv":
+            runs = pd.read_csv(run_file, header=None)
+            runs = runs[0].values
+        elif run_ext == ".npy":
+            runs = np.load(run_file, allow_pickle=True)
+    # get number of trials
+    num_trials = conditions.shape[0]
+    subs = np.repeat(subject, num_trials)
 
-data["responses"] = img
-data["conditions"] = conditions
-data["runs"] = runs
+    combined_conditions.append(conditions)
+    combined_runs.append(runs)
+    combined_subjects.append(subs)
+
+data["responses"] = image.concat_imgs(imgs)
+data["conditions"] = np.concatenate(combined_conditions)
+data["runs"] = np.concatenate(combined_runs)
+data["subjects"] = np.concatenate(combined_subjects)
 
 N_JOBS = 50
 
@@ -97,7 +107,7 @@ svc = decoding.Decoder(
     verbose=11,
     screening_percentile=100,
     standardize="zscore_sample",
-    scoring="accuracy",
+    # scoring="accuracy",
 )
 svc.fit(X=data["responses"], y=data["conditions"])
 
@@ -109,7 +119,7 @@ chance = decoding.Decoder(
     verbose=11,
     screening_percentile=100,
     standardize="zscore_sample",
-    scoring="accuracy",
+    # scoring="accuracy",
 )
 chance.fit(X=data["responses"], y=data["conditions"])
 
