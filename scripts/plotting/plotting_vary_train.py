@@ -5,50 +5,73 @@ import matplotlib.pyplot as plt
 from glob import glob
 import numpy as np
 from sklearn.utils import Bunch
+from tqdm import tqdm
 
-sns.set_context("talk")
-
-# Define variables
+sns.set_context("talk", font_scale=1.2)
 # datasets
 datasets = [
-    "bold5000",
-    # "bold5000_fold2",
-    # "bold5000_fold3",
-    # "bold5000_fold4",
-    "forrest",
     "neuromod",
+    "forrest",
+    "bold5000",
     "rsvp",
+    # "nsd",
+    "aomic_anticipation",
 ]
-# n_samples = [332, 332, 332, 332, 175, 50, 360]
-n_samples = [332, 175, 50, 360]
+# Camelized dataset names
+fixed_datasets = {
+    "neuromod": "Neuromod",
+    "forrest": "Forrest",
+    "bold5000": "BOLD5000",
+    "rsvp": "RSVP-IBC",
+    # "nsd": "NSD",
+    "aomic_anticipation": "AOMIC",
+}
+# n_samples = [50, 175, 332, 360, 4848, 61]
+n_samples = [50, 175, 332, 360, 61]
 # performance metrics
-metrics = ["accuracy", "balanced_accuracy"]
+# metrics = ["accuracy", "balanced_accuracy"]
+metrics = ["balanced_accuracy"]
 # features
 features = ["voxels", "difumo"]
-# features = ["voxels"]
+# fixed feature names
+fixed_features = {"voxels": "Voxels", "difumo": "DiFuMo"}
 # classifiers
 classifiers = ["LinearSVC", "RandomForest"]
-# classifiers = ["LinearSVC"]
 # settings
 methods = ["conventional", "stacked"]
+# fixed method names
+fixed_methods = {
+    "conventional": "Conventional",
+    "stacked": "Ensemble",
+    "chance": "Chance",
+}
+# lineplot types
+plot_types = ["Classifier"]
+# plot_types = ["Feature", "Classifier"]
 
 DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
 out_dir = os.path.join(DATA_ROOT, "plots")
 os.makedirs(out_dir, exist_ok=True)
 
+### Calculate average gains
 for metric in metrics:
     dfs = []
     n_subs = []
     n_classes = []
     gains = Bunch()
     gains["dataset"] = []
-    gains["feature"] = []
-    gains["classifier"] = []
+    gains["Feature"] = []
+    gains["Classifier"] = []
     gains["gain"] = []
     gains["n_subs"] = []
     gains["n_classes"] = []
     gains["n_samples"] = []
-    for dataset, n_sample in zip(datasets, n_samples):
+
+    print(f"Calculating gains for {metric}...")
+
+    for dataset, n_sample in tqdm(
+        zip(datasets, n_samples), total=len(datasets)
+    ):
         for feature in features:
             results_dir = os.path.join(
                 DATA_ROOT, "results", f"{dataset}_{feature}"
@@ -59,24 +82,42 @@ for metric in metrics:
                 )
                 for pickle in pickles:
                     df = pd.read_pickle(pickle)
+
                     df["dataset"] = [dataset] * df.shape[0]
-                    df["feature"] = [feature] * df.shape[0]
-                    acc_conventional = df[df["setting"] == "conventional"][
+                    df["Feature"] = [feature] * df.shape[0]
+
+                    # fix column names
+                    df.rename(
+                        {
+                            "setting": "Setting",
+                            "classifier": "Classifier",
+                        },
+                        axis="columns",
+                        inplace=True,
+                    )
+
+                    # fix names
+                    df["Setting"] = df["Setting"].map(fixed_methods)
+                    df["Feature"] = df["Feature"].map(fixed_features)
+
+                    acc_conventional = df[df["Setting"] == "Conventional"][
                         metric
                     ].values
-                    acc_stacked = df[df["setting"] == "stacked"][metric].values
+                    acc_stacked = df[df["Setting"] == "Ensemble"][
+                        metric
+                    ].values
                     gain = acc_stacked - acc_conventional
                     gains["gain"].extend(gain)
                     gains["n_samples"].extend(
-                        df[df["setting"] == "conventional"][
+                        df[df["Setting"] == "Conventional"][
                             "train_size"
                         ].values
                     )
                     chance_rows = []
                     for _, row in df.iterrows():
-                        if row["setting"] == "conventional":
+                        if row["Setting"] == "Conventional":
                             chance_row = row.copy()
-                            chance_row["setting"] = "chance"
+                            chance_row["Setting"] = "Chance"
                             chance_row[metric] = row[f"dummy_{metric}"]
                         else:
                             chance_row[metric] = (
@@ -89,8 +130,8 @@ for metric in metrics:
                         np.concatenate(df["true"].to_list())
                     ).shape[0]
                     gains["dataset"].extend([dataset] * len(gain))
-                    gains["feature"].extend([feature] * len(gain))
-                    gains["classifier"].extend([classifier] * len(gain))
+                    gains["Feature"].extend([feature] * len(gain))
+                    gains["Classifier"].extend([classifier] * len(gain))
                     gains["n_subs"].extend([len(pickles)] * len(gain))
                     gains["n_classes"].extend([n_class] * len(gain))
                     dfs.append(df)
@@ -102,26 +143,29 @@ for metric in metrics:
 
     gains = pd.DataFrame(gains)
     av_gains = (
-        gains.groupby(["dataset", "feature", "classifier"])
+        gains.groupby(["dataset", "Feature", "Classifier"])
         .mean()
         .reset_index()
     )
+    av_gains["Feature"] = av_gains["Feature"].map(fixed_features)
     print(av_gains)
 
+    ### start plotting
     df = pd.concat(dfs)
     df = df.reset_index(drop=True)
-    df["Training size (%)"] = 90 - (df["left_out"] * 0.9)
-    df["log_train_size"] = np.log(df["train_size"])
-    df[f"log_{metric}"] = np.log(df[metric])
 
-    for plot_type in ["feature", "classifier"]:
-        if plot_type == "feature":
+    ### lineplots over varying training size
+    for plot_type in plot_types:
+        print(f"Plotting {metric} {plot_type} lineplots...")
+        if plot_type == "Feature":
             selector = classifiers.copy()
-            col_selector = "classifier"
-        elif plot_type == "classifier":
+            col_selector = "Classifier"
+        elif plot_type == "Classifier":
             selector = features.copy()
-            col_selector = "feature"
-        for selection in selector:
+            col_selector = "Feature"
+        for selection in tqdm(selector):
+            if plot_type == "Classifier":
+                selection = fixed_features[selection]
             df_ = df[df[col_selector] == selection]
             av_gains_ = av_gains[av_gains[col_selector] == selection]
             fig = sns.relplot(
@@ -129,25 +173,45 @@ for metric in metrics:
                 x="train_size",
                 y=metric,
                 col="dataset",
-                hue="setting",
+                hue="Setting",
                 style=plot_type,
                 palette=["b", "r", "k"],
                 kind="line",
+                facet_kws={
+                    "sharey": False,
+                    "sharex": False,
+                },
                 # col_wrap=2,
             )
             fig.fig.subplots_adjust(hspace=0.3)
             for i, ax in enumerate(fig.axes.flatten()):
-                ax.set(
-                    xscale="log",
-                    # yscale="log",
-                    ylim=(0, 1),
-                )
+                # ax.set(
+                #     xscale="log",
+                #     # yscale="log",
+                #     # ylim=(0, 1),
+                #     # xlim=(0, 5000),
+                # )
+                ax.set_xscale("log", base=2)
+                if n_samples[i] > 100:
+                    ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
+                    ax.ticklabel_format(style="plain")
+                    fmt = ax.get_xaxis().get_major_formatter()
+                else:
+                    ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
+                    fmt = ax.get_xaxis().get_major_formatter()
+                    fmt.set_scientific(False)
+                    print(fmt.__dict__)
 
-                ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
-                ax.ticklabel_format(style="plain")
-                ax.set_title(
-                    f"{datasets[i]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
+                title = f"{fixed_datasets[datasets[i]]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
+                ax.text(
+                    0.5,
+                    1.5,
+                    title,
+                    transform=ax.transAxes,
+                    horizontalalignment="center",
+                    verticalalignment="center",
                 )
+                stats = "Average gain:\n"
                 values = (
                     av_gains_[av_gains_["dataset"] == datasets[i]]["gain"]
                     .values.round(2)
@@ -157,39 +221,20 @@ for metric in metrics:
                 keys = av_gains_[av_gains_["dataset"] == datasets[i]][
                     plot_type
                 ].values
-                ax.text(
-                    1,
-                    0.9,
-                    "Average gain:",
-                    horizontalalignment="right",
-                    verticalalignment="center",
-                    transform=ax.transAxes,
-                )
-                ax.text(
-                    1,
-                    0.8,
-                    f"{keys[0]}: {values[0]}%",
-                    horizontalalignment="right",
-                    verticalalignment="center",
-                    transform=ax.transAxes,
-                )
-                ax.text(
-                    1,
-                    0.7,
-                    f"{keys[1]}: {values[1]}%",
-                    horizontalalignment="right",
-                    verticalalignment="center",
-                    transform=ax.transAxes,
-                )
-            fig.set_ylabels("accuracy", clear_inner=False)
-            fig.set_xlabels("train size")
+
+                ax.set_title("")
+                for i, (key, value) in enumerate(zip(keys, values)):
+                    stats += f"{key}: {value}%\n"
+                ax.set_title(stats, loc="right", fontsize="small")
+            fig.set_ylabels("Accuracy", clear_inner=False)
+            fig.set_xlabels("Training size")
             sns.move_legend(
                 fig,
                 "lower center",
                 ncol=2,
                 frameon=True,
                 shadow=True,
-                bbox_to_anchor=(0.45, -0.3),
+                bbox_to_anchor=(0.45, -0.4),
                 title=None,
             )
             plt.savefig(
@@ -206,79 +251,29 @@ for metric in metrics:
                 ),
                 bbox_inches="tight",
             )
-
-            gains_ = gains[gains[col_selector] == selection]
-            fig = sns.relplot(
-                data=gains_,
-                x="n_samples",
-                y="gain",
-                col="dataset",
-                # size="n_subs",
-                style=plot_type,
-                kind="line",
-                # col_wrap=2,
-                color="k",
-            )
-            plt.savefig(
-                os.path.join(
-                    out_dir,
-                    f"gains_v_samples_{metric}_{plot_type}_{selection}.png",
-                ),
-                bbox_inches="tight",
-            )
-            plt.savefig(
-                os.path.join(
-                    out_dir,
-                    f"gains_v_samples_{metric}_{plot_type}_{selection}.svg",
-                ),
-                bbox_inches="tight",
-            )
-            fig = sns.relplot(
-                data=gains_,
-                x="n_subs",
-                y="gain",
-                col="dataset",
-                # size="n_samples",
-                style=plot_type,
-                kind="line",
-                # col_wrap=2,
-                color="k",
-            )
-            plt.savefig(
-                os.path.join(
-                    out_dir,
-                    f"gains_v_subs_{metric}_{plot_type}_{selection}.png",
-                ),
-                bbox_inches="tight",
-            )
-            plt.savefig(
-                os.path.join(
-                    out_dir,
-                    f"gains_v_subs_{metric}_{plot_type}_{selection}.svg",
-                ),
-                bbox_inches="tight",
-            )
             plt.close()
 
-    df_mean = df.groupby(["dataset", "setting", "feature", "classifier"])
+    print(f"Plotting {metric} barplots...")
+    ### mean barplots
+    df_mean = df.groupby(["dataset", "Setting", "Feature", "Classifier"])
     df_mean = df_mean.apply(lambda x: x)
-    df_mean["setting, classifier"] = (
-        df_mean["setting"] + ", " + df_mean["classifier"]
+    df_mean["Setting, Classifier"] = (
+        df_mean["Setting"] + ", " + df_mean["Classifier"]
     )
-    chance = df_mean[df_mean["setting"] == "chance"]
+    chance = df_mean[df_mean["Setting"] == "Chance"]
     chance = chance.groupby(["dataset"]).mean().reset_index()
     chance = chance[["dataset", metric]].set_index("dataset").to_dict()
     order = [
-        "stacked, LinearSVC",
-        "stacked, RandomForest",
-        "conventional, LinearSVC",
-        "conventional, RandomForest",
+        "Ensemble, LinearSVC",
+        "Ensemble, RandomForest",
+        "Conventional, LinearSVC",
+        "Conventional, RandomForest",
     ]
     fig = sns.catplot(
         data=df_mean,
         x=metric,
-        y="feature",
-        hue="setting, classifier",
+        y="Feature",
+        hue="Setting, Classifier",
         col="dataset",
         kind="bar",
         palette=[
@@ -289,26 +284,26 @@ for metric in metrics:
             "k",
             "grey",
         ],
-        errorbar=None,
+        errorbar="ci",
         orient="h",
         hue_order=order,
-        order=["voxels", "difumo"],
+        order=["Voxels", "DiFuMo"],
     )
     # fig.fig.subplots_adjust(hspace=0.3, wspace=0.55)
-    fig.set_xlabels("average accuracy", wrap=True, clear_inner=False)
-    fig.set_ylabels("features", wrap=True, clear_inner=False)
+    fig.set_xlabels("Average accuracy", wrap=True, clear_inner=False)
+    fig.set_ylabels("Features", wrap=True, clear_inner=False)
     for i, ax in enumerate(fig.axes.ravel()):
         ax.set_title(
-            f"{datasets[i]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
+            f"{fixed_datasets[datasets[i]]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
         )
         ax.axvline(
             chance[metric][datasets[i]],
             color="k",
             linestyle="--",
-            label="chance",
+            label="Chance",
         )
 
-    for i in range(4):
+    for i in range(len(datasets)):
         ax = fig.facet_axis(0, i)
         for j in ax.containers:
             plt.bar_label(
@@ -316,7 +311,7 @@ for metric in metrics:
                 fmt="%.2f",
                 label_type="edge",
                 fontsize="x-small",
-                # padding=65,
+                padding=10,
                 # weight="bold",
                 color="black",
             )
@@ -326,8 +321,8 @@ for metric in metrics:
         ncol=3,
         frameon=True,
         shadow=True,
-        bbox_to_anchor=(-1.20, -0.6),
-        title="setting, classifier",
+        bbox_to_anchor=(-1.8, -0.8),
+        title="Setting, Classifier",
     )
     plt.savefig(
         os.path.join(
@@ -344,3 +339,6 @@ for metric in metrics:
         bbox_inches="tight",
     )
     plt.close()
+
+
+    

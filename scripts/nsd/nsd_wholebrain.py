@@ -1,4 +1,5 @@
 import pandas as pd
+from sklearn.utils import Bunch
 import numpy as np
 import os
 import seaborn as sns
@@ -8,39 +9,31 @@ import time
 from glob import glob
 import importlib.util
 import sys
-from sklearn.utils import Bunch
-from utils import parcellate, pretrain, decode, generate_sub_clf_combinations
 
 DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/data/"
 OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
 
 # load local utility functions
-# spec = importlib.util.spec_from_file_location(
-#     "utils",
-#     os.path.join(OUT_ROOT, "utils.py"),
-# )
-# utils = importlib.util.module_from_spec(spec)
-# sys.modules["utils"] = utils
-# spec.loader.exec_module(utils)
+spec = importlib.util.spec_from_file_location(
+    "utils_nsd",
+    os.path.join(OUT_ROOT, "utils_nsd.py"),
+)
+utils_nsd = importlib.util.module_from_spec(spec)
+sys.modules["utils_nsd"] = utils_nsd
+spec.loader.exec_module(utils_nsd)
 
 # datasets and classifiers to use
-# datas = [
-#     "bold5000",
-#     "bold5000_fold2",
-#     "bold5000_fold3",
-#     "bold5000_fold4",
-#     "forrest",
-#     "neuromod",
-#     "rsvp_trial",
-# ]
 datas = [
-    "bold5000",
+    # "bold5000",
     # "bold5000_fold2",
     # "bold5000_fold3",
     # "bold5000_fold4",
-    "forrest",
+    # "forrest",
     # "neuromod",
-    "rsvp",
+    # "rsvp",
+    # "aomic_faces",
+    # "aomic_anticipation",
+    "nsd"
 ]
 classifiers = ["LinearSVC", "RandomForest"]
 
@@ -65,12 +58,13 @@ for dataset in datas:
     subjects = [os.path.basename(img).split(".")[0] for img in imgs]
 
     print(f"\nParcellating {dataset}...")
-    data = Parallel(n_jobs=len(subjects), verbose=2, backend="loky")(
-        delayed(parcellate)(
+    data = Parallel(
+        n_jobs=len(subjects) // 2, verbose=2, backend="multiprocessing"
+    )(
+        delayed(utils_nsd.parcellate)(
             imgs[i],
             subject,
             atlas,
-            DATA_ROOT=DATA_ROOT,
             data_dir=data_dir,
             nifti_dir=nifti_dir,
         )
@@ -89,9 +83,9 @@ for dataset in datas:
 
     print(f"\nPretraining dummy classifiers on {dataset}...")
     dummy_fitted_classifiers = Parallel(
-        n_jobs=len(subjects), verbose=2, backend="loky"
+        n_jobs=len(subjects), verbose=2, backend="multiprocessing"
     )(
-        delayed(pretrain)(
+        delayed(utils_nsd.pretrain)(
             subject=subject,
             data=data,
             dummy=True,
@@ -103,11 +97,11 @@ for dataset in datas:
 
     print(f"\nPretraining linear classifiers on {dataset}...")
     fitted_classifiers = Parallel(
-        n_jobs=len(subjects), verbose=11, backend="loky"
+        n_jobs=len(subjects), verbose=11, backend="multiprocessing"
     )(
-        delayed(pretrain)(
-            subject,
-            data,
+        delayed(utils_nsd.pretrain)(
+            subject=subject,
+            data=data,
             dummy=False,
             data_dir=data_dir,
             atlas=atlas,
@@ -117,9 +111,11 @@ for dataset in datas:
 
     print(f"\nRunning cross-val on {dataset}...")
     all_results = Parallel(
-        n_jobs=len(subjects) * len(classifiers), verbose=2, backend="loky"
+        n_jobs=len(subjects) * len(classifiers),
+        verbose=2,
+        backend="multiprocessing",
     )(
-        delayed(decode)(
+        delayed(utils_nsd.decode)(
             subject,
             subject_i,
             data,
@@ -129,7 +125,7 @@ for dataset in datas:
             results_dir,
             dataset,
         )
-        for subject, subject_i, clf in generate_sub_clf_combinations(
+        for subject, subject_i, clf in utils_nsd.generate_sub_clf_combinations(
             subjects, classifiers
         )
     )
@@ -152,7 +148,6 @@ for dataset in datas:
     print(f"\nPlotting results for {dataset}...")
     df = pd.concat(all_results)
     df["setting_classifier"] = df["setting"] + "_" + df["classifier"]
-
     sns.pointplot(
         data=df, x="train_size", y="accuracy", hue="setting_classifier"
     )
@@ -169,6 +164,22 @@ for dataset in datas:
     plt.ylabel("Accuracy")
     plt.xlabel("Training size")
     plt.savefig(os.path.join(results_dir, f"box_accuracy_{start_time}.png"))
+    plt.close()
+
+    sns.pointplot(
+        data=df,
+        x="train_size",
+        y="balanced_accuracy",
+        hue="setting_classifier",
+    )
+    plt.axhline(
+        y=df["dummy_balanced_accuracy"].mean(), color="k", linestyle="--"
+    )
+    plt.ylabel("Balanced Accuracy")
+    plt.xlabel("Training size")
+    plt.savefig(
+        os.path.join(results_dir, f"balanced_accuracy_{start_time}.png")
+    )
     plt.close()
 
     sns.pointplot(
