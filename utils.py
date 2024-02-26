@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 from joblib import dump, load
 from sklearn.ensemble import StackingClassifier, RandomForestClassifier
 from glob import glob
+from nilearn.datasets import load_mni152_gm_mask
 
 
 ### get class and group labels ###
@@ -51,7 +52,6 @@ def parcellate(
     img,
     subject,
     atlas,
-    DATA_ROOT,
     data_dir,
     nifti_dir,
 ):
@@ -59,24 +59,23 @@ def parcellate(
     parcellate_dir = os.path.join(data_dir, atlas.name)
     os.makedirs(parcellate_dir, exist_ok=True)
     parc_file = os.path.join(parcellate_dir, f"{subject}.npy")
+    mask = load_mni152_gm_mask(resolution=3)
+
     if os.path.exists(parc_file):
         parc = np.load(parc_file)
     else:
         if atlas.name == "wholebrain":
-            ref_img = image.index_img(img, 0)
-            ref_img_shape = ref_img.shape
-            wholebrain_mask = image.new_img_like(
-                ref_img, np.ones(ref_img_shape)
-            )
             masker = maskers.NiftiMasker(
-                mask_img=wholebrain_mask,
-                memory=DATA_ROOT,
+                mask_img=mask,
                 verbose=11,
                 n_jobs=20,
             )
         else:
             masker = maskers.NiftiMapsMasker(
-                maps_img=atlas.maps, memory=DATA_ROOT, verbose=11, n_jobs=20
+                maps_img=atlas["maps"],
+                mask_img=mask,
+                verbose=11,
+                n_jobs=20,
             )
         parc = masker.fit_transform(img)
         np.save(parc_file, parc)
@@ -86,6 +85,47 @@ def parcellate(
     data["runs"] = runs
     data["subjects"] = subs
     return data
+
+
+# ### parcellate data ###
+# def parcellate(
+#     img,
+#     subject,
+#     atlas,
+#     data_dir,
+#     nifti_dir,
+# ):
+#     data = dict(responses=[], conditions=[], runs=[], subjects=[])
+#     parcellate_dir = os.path.join(data_dir, atlas.name)
+#     os.makedirs(parcellate_dir, exist_ok=True)
+#     parc_file = os.path.join(parcellate_dir, f"{subject}.npy")
+#     if os.path.exists(parc_file):
+#         parc = np.load(parc_file)
+#     else:
+#         if atlas.name == "wholebrain":
+#             ref_img = image.index_img(img, 0)
+#             ref_img_shape = ref_img.shape
+#             wholebrain_mask = image.new_img_like(
+#                 ref_img, np.ones(ref_img_shape)
+#             )
+#             masker = maskers.NiftiMasker(
+#                 mask_img=wholebrain_mask,
+#                 memory_level=0,
+#                 verbose=11,
+#                 n_jobs=20,
+#             )
+#         else:
+#             masker = maskers.NiftiMapsMasker(
+#                 maps_img=atlas["maps"], memory_level=0, verbose=11, n_jobs=20
+#             )
+#         parc = masker.fit_transform(img)
+#         np.save(parc_file, parc)
+#     conditions, runs, subs = _get_labels(subject, parc, nifti_dir)
+#     data["responses"] = parc
+#     data["conditions"] = conditions
+#     data["runs"] = runs
+#     data["subjects"] = subs
+#     return data
 
 
 #### pretraining for stacking ####
@@ -126,6 +166,9 @@ def _classify(
     n_left_out,
     classifier,
     subject,
+    subs_stacked=None,
+    n_stacked=None,
+    vary_n_stacked=False,
 ):
     result = {}
     clf.fit(X[train], Y[train])
@@ -148,6 +191,9 @@ def _classify(
     result["train_size"] = len(train)
     result["setting"] = setting
     result["classifier"] = classifier
+    if vary_n_stacked:
+        result["n_stacked"] = n_stacked
+        result["subs_stacked"] = subs_stacked
 
     return result
 
@@ -238,12 +284,19 @@ def decode(
     X = data["responses"][sub_mask]
     Y = data["conditions"][sub_mask]
     groups = data["runs"][sub_mask]
-    cv = StratifiedShuffleSplit(test_size=0.10, random_state=0, n_splits=20)
+    if dataset == "aomic_faces":
+        cv = StratifiedShuffleSplit(
+            test_size=0.20, random_state=0, n_splits=20
+        )
+    else:
+        cv = StratifiedShuffleSplit(
+            test_size=0.10, random_state=0, n_splits=20
+        )
     # create conventional classifier
     if classifier == "LinearSVC":
         clf = LinearSVC(dual="auto")
     elif classifier == "RandomForest":
-        clf = RandomForestClassifier(n_estimators=200, random_state=0)
+        clf = RandomForestClassifier(n_estimators=500, random_state=0)
     count = 0
     _plot_cv_indices(
         cv,
@@ -261,14 +314,21 @@ def decode(
         leave=True,
         total=cv.get_n_splits(),
     ):
-        for n_left_out in range(0, 100, 10):
-            if n_left_out == 0:
+        N = train.shape[0]
+        n_classes = np.unique(Y[train]).shape[0]
+        train_sizes = np.geomspace(
+            n_classes * 2, N - n_classes * 2, num=10, endpoint=True
+        )
+        left_out_N = N - train_sizes
+        left_out_percs = left_out_N / N
+        for left_out in left_out_percs:
+            if left_out == 0:
                 train_ = train.copy()
             else:
                 indices = np.arange(X.shape[0])
                 train_, _ = train_test_split(
                     indices[train],
-                    test_size=n_left_out / 100,
+                    test_size=left_out,
                     random_state=0,
                     stratify=Y[train],
                 )
@@ -282,7 +342,7 @@ def decode(
                 X,
                 Y,
                 "conventional",
-                n_left_out,
+                left_out,
                 classifier,
                 subject,
             )
@@ -310,7 +370,7 @@ def decode(
                 X,
                 Y,
                 "stacked",
-                n_left_out,
+                left_out,
                 classifier,
                 subject,
             )
@@ -318,7 +378,7 @@ def decode(
             results.append(stacked_result)
 
             print(
-                f"{classifier} {n_left_out}% left-out, {subject}, split {count} :",
+                f"{classifier} {left_out*100:.2f}% left-out, {subject}, split {count} :",
                 f"{conventional_result['balanced_accuracy']:.2f} | {stacked_result['balanced_accuracy']:.2f} / {stacked_result['dummy_balanced_accuracy']:.2f}",
             )
 
@@ -336,3 +396,161 @@ def generate_sub_clf_combinations(subjects, classifiers):
     for subject_i, subject in enumerate(subjects):
         for clf in classifiers:
             yield subject, subject_i, clf
+
+
+### stacked cross-validation with varying number of subjects stacked ###
+def vary_stacked_subs(
+    subject,
+    subject_i,
+    data,
+    classifier,
+    fitted_classifiers,
+    dummy_fitted_classifiers,
+    results_dir,
+    dataset,
+    how_many_n_stacked=20,
+    reps_for_each_n_stacked=1,
+):
+    results = []
+    # select data for current subject
+    sub_mask = np.where(data["subjects"] == subject)[0]
+    X = data["responses"][sub_mask]
+    Y = data["conditions"][sub_mask]
+    groups = data["runs"][sub_mask]
+    if dataset == "aomic_faces":
+        cv = StratifiedShuffleSplit(
+            test_size=0.20, random_state=0, n_splits=20
+        )
+    else:
+        cv = StratifiedShuffleSplit(test_size=0.10, random_state=0, n_splits=5)
+    # create conventional classifier
+    if classifier == "LinearSVC":
+        clf = LinearSVC(dual="auto")
+    elif classifier == "RandomForest":
+        clf = RandomForestClassifier(n_estimators=500, random_state=0)
+    count = 0
+    _plot_cv_indices(
+        cv,
+        X,
+        Y,
+        groups,
+        subject,
+        20,
+        results_dir,
+    )
+    for train, test in tqdm(
+        cv.split(X, Y, groups=groups),
+        desc=f"{dataset}, {subject}, {classifier}",
+        position=0,
+        leave=True,
+        total=cv.get_n_splits(),
+    ):
+        N = train.shape[0]
+        n_classes = np.unique(Y[train]).shape[0]
+        train_sizes = np.geomspace(
+            n_classes * 2, N - n_classes * 2, num=10, endpoint=True
+        )
+        left_out_N = N - train_sizes
+        left_out_percs = left_out_N / N
+
+        total_subs = len(fitted_classifiers)
+        if total_subs < how_many_n_stacked:
+            n_stacked_subjects = (
+                np.linspace(
+                    1,
+                    total_subs,
+                    num=total_subs - 1,
+                    endpoint=False,
+                )
+                .round()
+                .astype(int)
+            )
+        else:
+            n_stacked_subjects = (
+                np.geomspace(
+                    1,
+                    total_subs,
+                    num=how_many_n_stacked,
+                    endpoint=False,
+                )
+                .round()
+                .astype(int)
+            )
+        n_stacked_subjects = np.unique(n_stacked_subjects)
+
+        for n_stacked in n_stacked_subjects:
+            # remove current subject from fitted classifiers
+            fitted_classifiers_ = fitted_classifiers.copy()
+            fitted_classifiers_.pop(subject_i)
+            fitted_classifiers_ = np.array(fitted_classifiers_)
+            dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
+            dummy_fitted_classifiers_.pop(subject_i)
+            dummy_fitted_classifiers_ = np.array(dummy_fitted_classifiers_)
+
+            # create `reps_for_each_n_stacked` random combinations of n_stacked subjects
+            for rep_i in range(reps_for_each_n_stacked):
+                rng = np.random.default_rng()
+                picked_subjects = rng.choice(
+                    len(fitted_classifiers_),
+                    int(n_stacked),
+                    replace=False,
+                )
+                # select a subset of fitted classifiers
+                fitted_classifiers__ = fitted_classifiers_[picked_subjects]
+                dummy_fitted_classifiers__ = dummy_fitted_classifiers_[
+                    picked_subjects
+                ]
+                subs_stacked = [clf[0] for clf in fitted_classifiers__]
+                for left_out in left_out_percs:
+                    if left_out == 0:
+                        train_ = train.copy()
+                    else:
+                        indices = np.arange(X.shape[0])
+                        train_, _ = train_test_split(
+                            indices[train],
+                            test_size=left_out,
+                            random_state=0,
+                            stratify=Y[train],
+                        )
+
+                    # create stacked classifier
+                    stacked_clf = StackingClassifier(
+                        list(fitted_classifiers__),
+                        final_estimator=clone(clf),
+                        cv="prefit",
+                    )
+                    dummy_stacked_clf = StackingClassifier(
+                        list(dummy_fitted_classifiers__),
+                        final_estimator=DummyClassifier(
+                            strategy="most_frequent"
+                        ),
+                        cv="prefit",
+                    )
+                    stacked_result = _classify(
+                        stacked_clf,
+                        dummy_stacked_clf,
+                        train_,
+                        test,
+                        X,
+                        Y,
+                        "stacked",
+                        left_out,
+                        classifier,
+                        subject,
+                        subs_stacked,
+                        n_stacked,
+                        vary_n_stacked=True,
+                    )
+                    results.append(stacked_result)
+
+                    print(
+                        f"{classifier} {left_out*100:.2f}% left-out, {subject}, split {count},",
+                        f"{n_stacked} subs stacked, rep {rep_i} : {stacked_result['balanced_accuracy']:.2f} / {stacked_result['dummy_balanced_accuracy']:.2f}",
+                    )
+        count += 1
+
+    results = pd.DataFrame(results)
+    results.to_pickle(
+        os.path.join(results_dir, f"results_clf_{classifier}_{subject}.pkl")
+    )
+    return results

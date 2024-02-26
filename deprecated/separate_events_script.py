@@ -67,7 +67,7 @@ def make_dmtx(events, fmri, confounds=None, t_r=2):
     return dmtx
 
 
-ibc = "/ibc_data/preprocessed/"
+ibc = "/storage/store2/data/ibc/derivatives"
 
 # obtain a grey matter mask
 _package_directory = os.path.dirname(
@@ -102,12 +102,10 @@ for subject, session in tqdm(subject_session):
     # fetch the data
     data_path = os.path.join(ibc, subject, session, "func")
     fmri = sorted(
-        glob.glob(os.path.join(data_path, "*RSVPLanguage*_bold.nii.gz"))
+        glob.glob(os.path.join(data_path, "w*RSVPLanguage*_bold.nii.gz"))
     )
     confounds = sorted(
-        glob.glob(
-            os.path.join(data_path, "*RSVPLanguage*_confounds_timeseries.tsv")
-        )
+        glob.glob(os.path.join(data_path, "rp_*RSVPLanguage*.txt"))
     )
     events = sorted(
         glob.glob(os.path.join(data_path, "*RSVPLanguage*_events.tsv"))
