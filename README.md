@@ -1,13 +1,20 @@
 # Ensemble Learning and Decoding
 
-This repo contains code for decoding trial conditions in four different cohorts and tasks: BOLD5000 (Chang et al. 2019), Forrest (Hanke et al. 2015), Neuromod (Bellec and Boyle 2019), and RSVP (Pinho et al. 2020).
+## Abstract
 
-## Method
+Decoding cognitive states from functional magnetic resonance imaging is central to understanding the functional organization of the brain. Within-subject decoding avoids between-subject correspondence problems but requires large sample sizes to make accurate predictions; obtaining such large sample sizes is both challenging and expensive. Here, we investigate an ensemble approach to decoding that combines the classifiers trained on data from other subjects to decode cognitive states in a new subject. We compare it with the conventional decoding approach on five different datasets and cognitive tasks. We find that it outperforms the conventional approach by up to 20\% in accuracy, especially for datasets with limited per-subject data. The ensemble approach is particularly advantageous when the classifier is trained in voxel space. Furthermore, a Multi-layer Perceptron turns out to be a good default choice as an ensemble method. These results show that the pre-training strategy reduces the need for large per-subject data.
 
-We use trial-by-trial GLM parameter maps from each of these tasks. Each of these datasets has about 4-6 classes of stimuli to be decoded and hence has similar decoding complexity. We also compare the two decoding settings across two different feature spaces - full voxel space and 1024 modes of the DiFuMo atlas (Dadi et al. 2020) and use two different classifiers for decoding - linear SVC and random forest (Pedregosa et al. 2011).
 
-Within each cohort, we vary the size of the training set in increments of 10% of the samples available for each subject and always test the trained model on 10% of the samples.
+## Results
 
-In a conventional decoding setting, a classifier is trained to learn the mapping between stimuli labels and features in the voxel space. 
+#### The ensemble approach outperforms conventional decoding
+![Average decoding accuracy: Each plot represents a different dataset (along columns). The average decoding accuracy is plotted along the x-axis. The averages are across all training sizes, subjects and 20 cross-validation splits. The error bars represent a 95\% confidence interval of the bootstrap distribution. The horizontal line represents the chance level of accuracy.](plots/bench_balanced_accuracy.png "Average decoding accuracy")
 
-In the stacking approach we train a classifier to learn the mapping between true stimuli labels and the stimuli predictions from classifiers pre-trained on other subjects’ voxel-space features. This converts a high-dimensional problem (where the number of features is the number of voxels) to a low-dimensional one (where the number of features is one minus the number of subjects in the cohort).
+#### It is beneficial in scarce data scenarios
+![Gain in decoding accuracy when varying the number of training samples per class: Each plot represents a different dataset (along columns). The y-axis shows the average percent gain in decoding accuracy (accuracy of ensemble - accuracy of conventional) across all subjects and 20 cross-validation splits. On the x-axis, training size is reported as the number of samples per class in each cross-validation split. The confidence intervals represent a 95% confidence interval of bootstrap distribution. The horizontal line represents no average gain in accuracy and the vertical line, 10 samples per class.](plots/gains_v_samples_per_class_balanced_accuracy.png "Gain in decoding accuracy when varying the number of training samples per class")
+
+#### The gains increase with increasing number of subjects in the ensemble
+![Gain in decoding accuracy over a varying number of subjects in the ensemble: Each plot represents a different dataset (along columns). The x-axis represents the number of subjects used in the ensemble method. The y-axis represents the average percent gain in decoding accuracy (accuracy of ensemble - accuracy of conventional) across all training sizes and 5 cross-validation splits. The confidence intervals represent a 95% interval of bootstrap distribution. The horizontal line represents no average gain in accuracy and the vertical line at 10 subjects in the ensemble.](plots/varysubs_vs_gain.png "Gain in decoding accuracy over a varying number of subjects in the ensemble")
+
+#### Extracting voxel-wise feature importance scores is still possible
+![](plots/supp/rsvp_difumo_RandomForest_sub-04_featimp_voxels_z_glass.png "Broca's area is important for decoding conditions in the RSVP language task")
