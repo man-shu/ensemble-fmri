@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 from glob import glob
 import numpy as np
 from tqdm import tqdm
@@ -89,11 +90,7 @@ def calculate_gain(df, dataset, feature, classifier):
         gain["dataset"].extend([dataset] * len(gains))
         gain["Feature"].extend([feature] * len(gains))
         gain["Classifier"].extend([classifier] * len(gains))
-        try:
-            gain_df = pd.DataFrame(gain)
-        except Exception as error:
-            print(error)
-            pdb.set_trace()
+        gain_df = pd.DataFrame(gain)
         gain_dfs.append(gain_df)
     gain_df = pd.concat(gain_dfs)
     return gain_df
@@ -155,7 +152,15 @@ if __name__ == "__main__":
     out_dir = os.path.join(DATA_ROOT, "plots")
     os.makedirs(out_dir, exist_ok=True)
 
-    datasets = ["aomic_anticipation"]
+    # datasets
+    datasets = [
+        "neuromod",
+        "aomic_anticipation",
+        "forrest",
+        "bold5000",
+        "rsvp",
+        # "nsd",
+    ]
 
     # Camelized dataset names
     fixed_datasets = {
@@ -166,21 +171,20 @@ if __name__ == "__main__":
         # "nsd": "NSD",
         "aomic_anticipation": "AOMIC",
     }
-    n_samples = [61]
+    n_samples = [50, 61, 175, 332, 360]
+    n_subs = [4, 203, 10, 3, 13]
 
     gain_dfs = []
     dfs = []
     for dataset_i, dataset in enumerate(datasets):
         for feature in ["voxels", "difumo"]:
-            for classifier in ["LinearSVC", "RandomForest"]:
+            for classifier in ["MLP", "LinearSVC", "RandomForest"]:
                 df, gain_df = load_all_subs(dataset, feature, classifier)
                 gain_df = get_logistic_fit(gain_df, classifier)
                 dfs.append(df)
                 gain_dfs.append(gain_df)
     df = pd.concat(dfs)
     df.reset_index(drop=True, inplace=True)
-
-    n_subs = df["subject"].unique().shape[0]
 
     gain_df = pd.concat(gain_dfs)
     gain_df.reset_index(drop=True, inplace=True)
@@ -227,42 +231,59 @@ if __name__ == "__main__":
     #     },
     # )
     gain_df = fix_names(gain_df)
+
+    colors = sns.color_palette("tab10")
+    mlp_colors = colors[2]
+    lsvc_colors = colors[3]
+    rf_colors = colors[4]
+    colors = [mlp_colors, lsvc_colors, rf_colors]
     fig = sns.relplot(
         data=gain_df,
         x="n_stacked",
         y="gain",
-        style="Classifier",
+        style="Feature",
         col="dataset",
-        hue="Feature",
+        hue="Classifier",
         kind="line",
         facet_kws={
             "sharey": False,
             "sharex": False,
         },
-        aspect=1.5,
-        palette=["b", "r"],
+        palette=colors,
         # err_style="bars",
         markers=True,
+        col_wrap=3,
     )
     for i, ax in enumerate(fig.axes.ravel()):
-        title = f"{fixed_datasets[dataset]}, {n_subs} subjects,\n {n_samples[dataset_i]} samples"
+        title = f"{fixed_datasets[datasets[i]]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
         ax.set_title(
-            f"{fixed_datasets[dataset]}, {n_subs} subjects,\n {n_samples[dataset_i]} samples"
+            f"{fixed_datasets[datasets[i]]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
         )
-        ax.set(xscale="log")
-        ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
-        ax.ticklabel_format(style="plain")
-        ax.set_xlabel("No. of subjects in the ensemble")
-        ax.set_ylabel("Gain (%)")
+        if datasets[i] == "aomic_anticipation":
+            ax.set(xscale="log")
+            ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
+            ax.ticklabel_format(style="plain")
+        else:
+            ax.set(xscale="linear")
+            if n_subs[i] > 5:
+                ax.get_xaxis().set_major_locator(MultipleLocator(2))
+            else:
+                ax.get_xaxis().set_major_locator(MultipleLocator(1))
+        ax.set_xlim(
+            1,
+        )
         ax.axhline(0, color="k")
         ax.axvline(10, color="k")
+    fig.fig.subplots_adjust(hspace=0.5)
+    fig.set_xlabels("No. of subjects")
+    fig.set_ylabels("Gain (%)")
     sns.move_legend(
         fig,
         "lower center",
-        ncol=2,
+        ncol=1,
         frameon=True,
         shadow=True,
-        bbox_to_anchor=(0.45, -0.3),
+        bbox_to_anchor=(0.7, 0.1),
         title=None,
     )
     plt.savefig(

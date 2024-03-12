@@ -264,8 +264,10 @@ for metric in metrics:
     chance = chance.groupby(["dataset"]).mean().reset_index()
     chance = chance[["dataset", metric]].set_index("dataset").to_dict()
     order = [
+        "Ensemble, MLP",
         "Ensemble, LinearSVC",
         "Ensemble, RandomForest",
+        "Conventional, MLP",
         "Conventional, LinearSVC",
         "Conventional, RandomForest",
     ]
@@ -276,14 +278,7 @@ for metric in metrics:
         hue="Setting, Classifier",
         col="dataset",
         kind="bar",
-        palette=[
-            "r",
-            "pink",
-            "b",
-            "skyblue",
-            "k",
-            "grey",
-        ],
+        palette="tab20c",
         errorbar="ci",
         orient="h",
         hue_order=order,
@@ -339,6 +334,3 @@ for metric in metrics:
         bbox_inches="tight",
     )
     plt.close()
-
-
-    
