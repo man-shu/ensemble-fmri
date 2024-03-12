@@ -172,7 +172,6 @@ def _classify(
     subs_stacked=None,
     n_stacked=None,
     vary_n_stacked=False,
-    feat_imp=False,
 ):
     result = {}
     clf.fit(X[train], Y[train])
@@ -199,20 +198,7 @@ def _classify(
         result["n_stacked"] = n_stacked
         result["subs_stacked"] = subs_stacked
 
-    if feat_imp:
-        bbi_model = BlockBasedImportance(
-            estimator=clf,
-            prob_type="classification",
-            n_jobs=10,
-            random_state=0,
-            verbose=10,
-        )
-        bbi_model.fit(X[train], Y[train])
-        importance = bbi_model.compute_importance()
-    else:
-        importance = None
-
-    return result, importance
+    return result
 
 
 ### plot cv splits ###
@@ -294,7 +280,6 @@ def decode(
     dummy_fitted_classifiers,
     results_dir,
     dataset,
-    feat_imp=True,
 ):
     results = []
     # select data for current subject
@@ -365,7 +350,6 @@ def decode(
                 left_out,
                 classifier,
                 subject,
-                feat_imp=feat_imp,
             )
             # remove current subject from fitted classifiers
             fitted_classifiers_ = fitted_classifiers.copy()
@@ -394,7 +378,6 @@ def decode(
                 left_out,
                 classifier,
                 subject,
-                feat_imp=feat_imp,
             )
             results.append(conventional_result)
             results.append(stacked_result)
