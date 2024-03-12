@@ -4,6 +4,7 @@ import numpy as np
 import os
 from sklearn.base import clone
 from sklearn.svm import LinearSVC
+from sklearn.neural_network import MLPClassifier
 from sklearn.dummy import DummyClassifier
 from sklearn.model_selection import (
     ShuffleSplit,
@@ -17,6 +18,8 @@ from joblib import dump, load
 from sklearn.ensemble import StackingClassifier, RandomForestClassifier
 from glob import glob
 from nilearn.datasets import load_mni152_gm_mask
+from BBI import BlockBasedImportance
+from joblib import dump, load
 
 
 ### get class and group labels ###
@@ -130,7 +133,7 @@ def parcellate(
 
 #### pretraining for stacking ####
 def pretrain(subject, data, dummy, data_dir, atlas):
-    pretrain_dir = os.path.join(data_dir, f"pretrain_{atlas.name}")
+    pretrain_dir = os.path.join(data_dir, f"pretrain_{atlas.name}_l2")
     os.makedirs(pretrain_dir, exist_ok=True)
     if dummy:
         file_id = "dummy"
@@ -147,7 +150,7 @@ def pretrain(subject, data, dummy, data_dir, atlas):
         if dummy:
             clf = DummyClassifier(strategy="most_frequent")
         else:
-            clf = LinearSVC(dual="auto")
+            clf = LinearSVC(dual="auto", penalty="l1")
         # fit classifier
         clf.fit(X, Y)
         dump(clf, clf_file)
@@ -169,6 +172,7 @@ def _classify(
     subs_stacked=None,
     n_stacked=None,
     vary_n_stacked=False,
+    feat_imp=False,
 ):
     result = {}
     clf.fit(X[train], Y[train])
@@ -195,7 +199,20 @@ def _classify(
         result["n_stacked"] = n_stacked
         result["subs_stacked"] = subs_stacked
 
-    return result
+    if feat_imp:
+        bbi_model = BlockBasedImportance(
+            estimator=clf,
+            prob_type="classification",
+            n_jobs=10,
+            random_state=0,
+            verbose=10,
+        )
+        bbi_model.fit(X[train], Y[train])
+        importance = bbi_model.compute_importance()
+    else:
+        importance = None
+
+    return result, importance
 
 
 ### plot cv splits ###
@@ -277,6 +294,7 @@ def decode(
     dummy_fitted_classifiers,
     results_dir,
     dataset,
+    feat_imp=True,
 ):
     results = []
     # select data for current subject
@@ -297,6 +315,8 @@ def decode(
         clf = LinearSVC(dual="auto")
     elif classifier == "RandomForest":
         clf = RandomForestClassifier(n_estimators=500, random_state=0)
+    elif classifier == "MLP":
+        clf = MLPClassifier(random_state=0, max_iter=1000, verbose=11)
     count = 0
     _plot_cv_indices(
         cv,
@@ -334,7 +354,7 @@ def decode(
                 )
             clf = clone(clf)
             dummy_clf = DummyClassifier(strategy="most_frequent")
-            conventional_result = _classify(
+            conventional_result, conventional_imp = _classify(
                 clf,
                 dummy_clf,
                 train_,
@@ -345,6 +365,7 @@ def decode(
                 left_out,
                 classifier,
                 subject,
+                feat_imp=feat_imp,
             )
             # remove current subject from fitted classifiers
             fitted_classifiers_ = fitted_classifiers.copy()
@@ -362,7 +383,7 @@ def decode(
                 final_estimator=DummyClassifier(strategy="most_frequent"),
                 cv="prefit",
             )
-            stacked_result = _classify(
+            stacked_result, stacked_imp = _classify(
                 stacked_clf,
                 dummy_stacked_clf,
                 train_,
@@ -373,6 +394,7 @@ def decode(
                 left_out,
                 classifier,
                 subject,
+                feat_imp=feat_imp,
             )
             results.append(conventional_result)
             results.append(stacked_result)
@@ -428,6 +450,8 @@ def vary_stacked_subs(
         clf = LinearSVC(dual="auto")
     elif classifier == "RandomForest":
         clf = RandomForestClassifier(n_estimators=500, random_state=0)
+    elif classifier == "MLP":
+        clf = MLPClassifier(random_state=0, max_iter=1000, verbose=11)
     count = 0
     _plot_cv_indices(
         cv,
@@ -526,7 +550,7 @@ def vary_stacked_subs(
                         ),
                         cv="prefit",
                     )
-                    stacked_result = _classify(
+                    stacked_result, _ = _classify(
                         stacked_clf,
                         dummy_stacked_clf,
                         train_,
@@ -554,3 +578,77 @@ def vary_stacked_subs(
         os.path.join(results_dir, f"results_clf_{classifier}_{subject}.pkl")
     )
     return results
+
+
+def feature_importance(
+    subject,
+    subject_i,
+    data,
+    classifier,
+    fitted_classifiers,
+    dummy_fitted_classifiers,
+    results_dir,
+    dataset,
+    n_jobs,
+):
+    # select data for current subject
+    sub_mask = np.where(data["subjects"] == subject)[0]
+    X = data["responses"][sub_mask]
+    Y = data["conditions"][sub_mask]
+
+    # create conventional classifier
+    if classifier == "LinearSVC":
+        clf = LinearSVC(dual="auto")
+    elif classifier == "RandomForest":
+        clf = RandomForestClassifier(n_estimators=500, random_state=0)
+    elif classifier == "MLP":
+        clf = MLPClassifier(random_state=0, max_iter=1000, verbose=11)
+    # importance estimator
+    # conventional_bbi_model = BlockBasedImportance(
+    #     estimator=clf,
+    #     prob_type="classification",
+    #     n_jobs=50,
+    #     random_state=0,
+    #     verbose=11,
+    #     do_hyper=False,
+    # )
+    # conventional_bbi_model.fit(X, Y)
+    # conventional_importance = conventional_bbi_model.compute_importance()
+    # conventional_importance["subject"] = subject
+    # conventional_importance["classifier"] = classifier
+    # conventional_importance["setting"] = "conventional"
+    # conventional_importance["dataset"] = dataset
+    # results.append(conventional_importance)
+
+    # remove current subject from fitted classifiers
+    fitted_classifiers_ = fitted_classifiers.copy()
+    fitted_classifiers_.pop(subject_i)
+    dummy_fitted_classifiers_ = dummy_fitted_classifiers.copy()
+    dummy_fitted_classifiers_.pop(subject_i)
+    # create stacked classifier
+    stacked_clf = StackingClassifier(
+        fitted_classifiers_,
+        final_estimator=clone(clf),
+        cv="prefit",
+    )
+    # importance estimator
+    stacked_bbi_model = BlockBasedImportance(
+        estimator=stacked_clf,
+        prob_type="classification",
+        n_jobs=n_jobs,
+        random_state=0,
+        verbose=0,
+        do_hyper=False,
+    )
+    stacked_bbi_model.fit(X, Y)
+    stacked_importance = stacked_bbi_model.compute_importance()
+    stacked_importance["subject"] = subject
+    stacked_importance["classifier"] = classifier
+    stacked_importance["setting"] = "stacked"
+    stacked_importance["dataset"] = dataset
+
+    dump(
+        stacked_importance,
+        os.path.join(results_dir, f"featimp_clf_{classifier}_{subject}.pkl"),
+    )
+    return stacked_importance
