@@ -12,7 +12,7 @@ from sklearn.utils import Bunch
 
 # from utils import parcellate, pretrain, decode, generate_sub_clf_combinations
 
-N_JOBS = 15
+N_JOBS = 20
 
 DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/data/"
 OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
@@ -28,21 +28,24 @@ spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
 datas = [
-    # "bold5000",
     # "bold5000_fold2",
     # "bold5000_fold3",
     # "bold5000_fold4",
     # "neuromod",
-    "aomic_gstroop",
+    # "aomic_gstroop",
     # "forrest",
     # "rsvp",
-    # "aomic_anticipation",
+    "aomic_anticipation",
+    # "bold5000_fold1",
     # "aomic_faces",
     # "hcp_gambling",
     # "bold",
     # "nsd",
+    # "ibc_aomic_gstroop",
+    # "ibc_hcp_gambling",
 ]
-classifiers = ["LinearSVC", "RandomForest"]
+classifiers = ["LinearSVC", "RandomForest", "MLP"]
+# classifiers = []
 
 for dataset in datas:
     # input data root path
@@ -127,6 +130,7 @@ for dataset in datas:
             dummy_fitted_classifiers,
             results_dir,
             dataset,
+            feat_imp=False,
         )
         for subject, subject_i, clf in utils.generate_sub_clf_combinations(
             subjects, classifiers

@@ -10,7 +10,7 @@ from glob import glob
 import importlib.util
 import sys
 
-N_JOBS = 30
+N_JOBS = 5
 
 DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/data/"
 OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
@@ -25,8 +25,24 @@ sys.modules["utils"] = utils
 spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
-datas = ["aomic_anticipation"]
-classifiers = ["LinearSVC", "RandomForest"]
+datas = [
+    # "bold5000_fold2",
+    # "bold5000_fold3",
+    # "bold5000_fold4",
+    "neuromod",
+    # "aomic_gstroop",
+    "forrest",
+    "rsvp",
+    "aomic_anticipation",
+    "bold5000_fold1",
+    # "aomic_faces",
+    # "hcp_gambling",
+    # "bold",
+    # "nsd",
+    # "ibc_aomic_gstroop",
+    # "ibc_hcp_gambling",
+]
+classifiers = ["LinearSVC", "RandomForest", "MLP"]
 
 for dataset in datas:
     # input data root path
@@ -45,7 +61,7 @@ for dataset in datas:
 
     # output results path
     start_time = time.strftime("%Y%m%d-%H%M%S")
-    results_dir = f"{dataset}_{atlas.name}_results_{start_time}"
+    results_dir = f"{dataset}_{atlas.name}_varysubs_{start_time}"
     results_dir = os.path.join(OUT_ROOT, results_dir)
     os.makedirs(results_dir, exist_ok=True)
 

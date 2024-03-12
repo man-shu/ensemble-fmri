@@ -26,22 +26,24 @@ spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
 datas = [
-    # "bold5000",
     # "bold5000_fold2",
     # "bold5000_fold3",
     # "bold5000_fold4",
-    # "neuromod",
+    "neuromod",
     # "aomic_gstroop",
-    # "forrest",
-    # "rsvp",
+    "forrest",
+    "rsvp",
     # "aomic_anticipation",
+    "bold5000_fold1",
     # "aomic_faces",
     # "hcp_gambling",
     # "bold",
     # "nsd",
-    "aomic_gstroop",
+    # "ibc_aomic_gstroop",
+    # "ibc_hcp_gambling",
 ]
-classifiers = ["LinearSVC", "RandomForest"]
+classifiers = ["LinearSVC", "RandomForest", "MLP"]
+# classifiers = ["MLP"]
 
 for dataset in datas:
     # input data root path
