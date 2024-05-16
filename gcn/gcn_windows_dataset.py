@@ -10,6 +10,8 @@ class TimeWindowsDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         data_dir,
+        train_index,
+        test_index,
         partition="train",
         val_ratio=0.20,
         test_ratio=0.10,
@@ -22,6 +24,8 @@ class TimeWindowsDataset(torch.utils.data.Dataset):
 
         # parameters initialization and checks
         self.data_dir = data_dir
+        self.train_index = train_index
+        self.test_index = test_index
         self.partition = partition
         self.test_ratio = test_ratio
         self.val_ratio = val_ratio
@@ -49,12 +53,15 @@ class TimeWindowsDataset(torch.utils.data.Dataset):
         # read file paths
         self._data_filepaths, self._label_filepath = self._read_file_list()
         # define indexes for the current partition
-        self._partition_indexes = self._set_indexes_partition()
-        self._partition_filepaths = self._data_filepaths[self._partition_indexes]
+        self._partition_indexes = self._get_indexes_partition()
+        self._partition_filepaths = self._data_filepaths[
+            self._partition_indexes
+        ]
         # read partition data, filepaths or data directly
         if self.pin_memory:
             self.partition_data = [
-                np.load(data_filepath) for data_filepath in self._partition_filepaths
+                np.load(data_filepath)
+                for data_filepath in self._partition_filepaths
             ]
             # check RAM usage
             avail_ram = psutil.virtual_memory().available
@@ -74,14 +81,20 @@ class TimeWindowsDataset(torch.utils.data.Dataset):
         # read partition targets
         if (self._label_filepath is None) | self.autoencoder:
             if self.autoencoder == False:
-                warnings.warn("No labels file, assuming auto-encoder generator.")
+                warnings.warn(
+                    "No labels file, assuming auto-encoder generator."
+                )
             self.partition_targets = None
         else:
-            self.partition_targets = self._read_labels()[self._partition_indexes]
+            self.partition_targets = self._read_labels()[
+                self._partition_indexes
+            ]
 
     def __repr__(self):
         return "{}*({}, {})".format(
-            self.__len__(), self.__getitem__(0)[0].shape, self.__getitem__(0)[1].shape
+            self.__len__(),
+            self.__getitem__(0)[0].shape,
+            self.__getitem__(0)[1].shape,
         )
 
     def __len__(self):
@@ -111,24 +124,35 @@ class TimeWindowsDataset(torch.utils.data.Dataset):
     def get_item_path(self, idx):
         return self._partition_filepaths[idx]
 
-    def _set_indexes_partition(self):
-        """Partition indexes into train/valid/test data"""
-        n_samples = len(self._data_filepaths)
-        train_index = 1 - self.test_ratio - self.val_ratio
-        val_index = 1 - self.test_ratio
-        indexes = np.arange(n_samples)
-        if self.shuffle:
-            rng = np.random.default_rng(self.random_seed)
-            rng.shuffle(indexes)
+    # def _set_indexes_partition(self):
+    #     """Partition indexes into train/valid/test data"""
+    #     n_samples = len(self._data_filepaths)
+    #     train_index = 1 - self.test_ratio - self.val_ratio
+    #     val_index = 1 - self.test_ratio
+    #     indexes = np.arange(n_samples)
+    #     if self.shuffle:
+    #         rng = np.random.default_rng(self.random_seed)
+    #         rng.shuffle(indexes)
 
+    #     if self.partition == "train":
+    #         range_idx = (0, int(train_index * n_samples))
+    #     elif self.partition == "valid":
+    #         range_idx = (int(train_index * n_samples), int(val_index * n_samples))
+    #     elif self.partition == "test":
+    #         range_idx = (int(val_index * n_samples), n_samples)
+
+    #     return indexes[range_idx[0] : range_idx[1]]
+
+    def _get_indexes_partition(self):
+        """Get the indexes for the current partition"""
         if self.partition == "train":
-            range_idx = (0, int(train_index * n_samples))
+            n_train = int(len(self.train_index) * (1 - self.val_ratio))
+            return self.train_index[0:n_train]
         elif self.partition == "valid":
-            range_idx = (int(train_index * n_samples), int(val_index * n_samples))
+            n_train = int(len(self.train_index) * (1 - self.val_ratio))
+            return self.train_index[n_train:]
         elif self.partition == "test":
-            range_idx = (int(val_index * n_samples), n_samples)
-
-        return indexes[range_idx[0] : range_idx[1]]
+            return self.test_index
 
     def _normalize_data(self, data):
         """Gaussian-normalization of the data, helps the training process for neural network models."""
