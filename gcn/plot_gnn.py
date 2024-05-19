@@ -41,10 +41,10 @@ sns.set_context("talk", font_scale=1.2)
 # datasets
 datasets = [
     "neuromod",
-    # "aomic_anticipation",
-    # "forrest",
-    # "bold5000",
-    # "rsvp",
+    "aomic_anticipation",
+    "forrest",
+    "bold5000",
+    "rsvp",
     # "nsd",
 ]
 # Camelized dataset names
@@ -136,6 +136,19 @@ for metric in metrics:
                     )
 
                     dfs.append(df)
+
+                    chance_rows = []
+                    for _, row in df.iterrows():
+                        if row["Setting"] == "Conventional":
+                            chance_row = row.copy()
+                            chance_row["Setting"] = "Chance"
+                            chance_row[metric] = row[f"dummy_{metric}"]
+                        else:
+                            chance_row[metric] = (
+                                chance_row[metric] + row[f"dummy_{metric}"]
+                            ) / 2
+                        chance_rows.append(chance_row)
+
                     dfs.append(pd.DataFrame(chance_rows))
 
         n_samples.append(n_sample)
@@ -185,9 +198,9 @@ for metric in metrics:
     df_mean["Setting, Classifier"] = (
         df_mean["Setting"] + ", " + df_mean["Classifier"]
     )
-    # chance = df_mean[df_mean["Setting"] == "Chance"]
-    # # chance = chance.groupby(["dataset"], 1).mean().reset_index()
-    # chance = chance[["dataset", metric]].set_index("dataset").to_dict()
+    chance = df_mean[df_mean["Setting"] == "Chance"]
+    # chance = chance.groupby(["dataset"]).mean().reset_index()
+    chance = chance[["dataset", metric]].set_index("dataset").to_dict()
     order = [
         "Ensemble, MLP",
         "Ensemble, LinearSVC",
@@ -216,6 +229,13 @@ for metric in metrics:
         hue_order=order,
         order=["Voxels", "DiFuMo"],
         col_wrap=3,
+        col_order=[
+            "neuromod",
+            "aomic_anticipation",
+            "forrest",
+            "bold5000",
+            "rsvp",
+        ],
     )
     fig.fig.subplots_adjust(wspace=0.2)
     fig.set_xlabels("Average accuracy (%)", wrap=True, clear_inner=False)
@@ -224,12 +244,12 @@ for metric in metrics:
         ax.set_title(
             f"{fixed_datasets[datasets[i]]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
         )
-        # ax.axvline(
-        #     chance[metric][datasets[i]],
-        #     color="k",
-        #     linestyle="--",
-        #     label="Chance",
-        # )
+        ax.axvline(
+            chance[metric][datasets[i]],
+            color="k",
+            linestyle="--",
+            label="Chance",
+        )
 
     for i in range(len(datasets)):
         ax = fig.facet_axis(0, i)
@@ -374,7 +394,7 @@ for metric in metrics:
                 ncol=1,
                 frameon=True,
                 shadow=True,
-                bbox_to_anchor=(0.4, 0.1),
+                bbox_to_anchor=(0.7, 0.1),
                 title=None,
             )
             plt.savefig(

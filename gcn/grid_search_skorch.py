@@ -31,6 +31,8 @@ from nilearn import datasets
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 import seaborn as sns
 import utils
+from skorch import NeuralNetClassifier
+from sklearn.model_selection import GridSearchCV
 
 
 warnings.filterwarnings("ignore")
@@ -131,7 +133,9 @@ def create_buffer_dir(X, Y, data_dir, subject):
     return buffer_dir
 
 
-def _create_train_test_split(X, Y, groups=None, random_state=0):
+def _create_train_test_split(
+    X, Y, groups=None, random_state=0, get_max_train=False
+):
     if dataset == "aomic_faces":
         cv = StratifiedShuffleSplit(
             test_size=0.20, random_state=random_state, n_splits=20
@@ -141,29 +145,117 @@ def _create_train_test_split(X, Y, groups=None, random_state=0):
             test_size=0.10, random_state=random_state, n_splits=20
         )
     for train, test in cv.split(X, Y, groups=groups):
-        N = train.shape[0]
-        n_classes = np.unique(Y[train]).shape[0]
-        train_sizes = np.geomspace(
-            n_classes * 2, N - n_classes * 2, num=10, endpoint=True
+        if get_max_train:
+            train_ = train.copy()
+            yield train_, test, 0
+        else:
+            N = train.shape[0]
+            n_classes = np.unique(Y[train]).shape[0]
+            train_sizes = np.geomspace(
+                n_classes * 2, N - n_classes * 2, num=10, endpoint=True
+            )
+            left_out_N = N - train_sizes
+            left_out_percs = left_out_N / N
+            for left_out in left_out_percs:
+                if left_out == 0:
+                    train_ = train.copy()
+                else:
+                    indices = np.arange(X.shape[0])
+                    train_, _ = train_test_split(
+                        indices[train],
+                        test_size=left_out,
+                        random_state=0,
+                        stratify=Y[train],
+                    )
+                yield train_, test, left_out
+
+
+def get_best_param(
+    param_grid,
+    X,
+    Y,
+    groups,
+    graph,
+    main_conditions,
+    random_state,
+    data_dir,
+    results_dir,
+    subject,
+):
+
+    best_param_dir = os.path.join(data_dir, "best_params")
+    best_param_file = os.path.join(best_param_dir, f"{subject}.pkl")
+    os.makedirs(best_param_dir, exist_ok=True)
+    if os.path.exists(os.path.join(results_dir, best_param_file)):
+        grid_result = load(os.path.join(results_dir, best_param_file))
+    else:
+        train, test, _ = next(
+            _create_train_test_split(
+                X,
+                Y,
+                groups=groups,
+                random_state=random_state,
+                get_max_train=True,
+            )
         )
-        left_out_N = N - train_sizes
-        left_out_percs = left_out_N / N
-        for left_out in left_out_percs:
-            if left_out == 0:
-                train_ = train.copy()
-            else:
-                indices = np.arange(X.shape[0])
-                train_, _ = train_test_split(
-                    indices[train],
-                    test_size=left_out,
-                    random_state=0,
-                    stratify=Y[train],
-                )
-            yield train_, test, left_out
+
+        len_train = len(train)
+        print(f"Training size: {len_train}")
+        buffer_dir = create_buffer_dir(X, Y, data_dir, subject)
+
+        train_dataset = TimeWindowsDataset(
+            data_dir=buffer_dir,
+            partition="train",
+            random_seed=random_state,
+            train_index=train,
+            test_index=test,
+            pin_memory=True,
+            shuffle=True,
+        )
+        torch.manual_seed(random_state)
+        train_generator = DataLoader(train_dataset, batch_size=len(train))
+
+        gcn = GCN(
+            graph.edge_index,
+            graph.edge_attr,
+            n_roi=X.shape[1],
+            n_timepoints=1,
+            n_classes=len(main_conditions),
+        )
+        skorch_gcn = NeuralNetClassifier(
+            module=gcn,
+            criterion=torch.nn.CrossEntropyLoss,
+            optimizer=torch.optim.Adam,
+            train_split=None,
+            verbose=2,
+        )
+
+        grid = GridSearchCV(
+            estimator=skorch_gcn,
+            param_grid=param_grid,
+            n_jobs=30,
+            cv=2,
+            verbose=0,
+        )
+        X, y = next(iter(train_generator))
+        X = X.float()
+        y = y.long()
+        grid_result = grid.fit(X, y)
+
+        dump(grid_result, best_param_file)
+
+    return grid_result.best_params_
 
 
 def decode(
-    data, connectomes, subject, results_dir, classifier="GNN", random_state=0
+    data,
+    connectomes,
+    subject,
+    results_dir,
+    param_grid,
+    classifier="GNN",
+    random_state=0,
+    N_JOBS=5,
 ):
 
     # select data for current subject
@@ -192,8 +284,27 @@ def decode(
 
     # results
     results = []
-    # training metrics
-    training_metrics = []
+
+    # do grid search
+    print(f"Grid search for {subject}...")
+    best_params = get_best_param(
+        param_grid,
+        X,
+        Y,
+        groups,
+        graph,
+        main_conditions,
+        random_state,
+        data_dir,
+        results_dir,
+        subject,
+    )
+    print(f"Best parameters for {subject}: {best_params}")
+
+    # best_params = {
+    #     "batch_size": 6,
+    #     "max_epochs": 50,
+    # }
 
     # split data
     for train, test, left_out in _create_train_test_split(
@@ -260,53 +371,37 @@ def decode(
             graph.edge_index,
             graph.edge_attr,
             n_roi=X.shape[1],
-            batch_size=batch_size,
             n_timepoints=1,
             n_classes=len(main_conditions),
         )
-        print(gcn)
-
-        loss_fn = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(
-            gcn.parameters(), lr=1e-4, weight_decay=5e-4
+        skorch_gcn = NeuralNetClassifier(
+            module=gcn,
+            criterion=torch.nn.CrossEntropyLoss,
+            optimizer=torch.optim.Adam,
+            optimizer__lr=1e-4,
+            optimizer__weight_decay=5e-4,
+            train_split=None,
+            **best_params,
         )
 
-        epochs = 50
-        train_losses = []
-        train_accuracies = []
-        valid_losses = []
-        valid_accuracies = []
+        X_train, y_train = next(iter(train_generator))
+        X_train = X_train.float()
+        y_train = y_train.long()
+        skorch_gcn.fit(X_train, y_train)
 
-        for t in range(epochs):
-            print(f"Epoch {t+1}/{epochs}\n-------------------------------")
-            train_loss, train_accuracy = train_loop(
-                train_generator, gcn, loss_fn, optimizer
-            )
-            train_losses.append(train_loss)
-            train_accuracies.append(train_accuracy)
-            valid_loss, valid_accuracy, _, _ = valid_test_loop(
-                valid_generator, gcn, loss_fn
-            )
-            valid_losses.append(valid_loss)
-            valid_accuracies.append(valid_accuracy)
-            print(
-                f"Valid metrics:\n\t avg_loss: {valid_loss:>8f};\t avg_accuracy: {(100*valid_accuracy):>0.1f}%"
-            )
-
-        test_loss, test_accuracy, pred, true = valid_test_loop(
-            test_generator, gcn, loss_fn
-        )
-        balanced_accuracy = balanced_accuracy_score(true, pred.argmax(1))
-        print(
-            f"Test metrics:\n\t avg_loss: {test_loss:>f};\t avg_accuracy: {(100*test_accuracy):>0.1f}%"
-        )
+        X_test, y_test = next(iter(test_generator))
+        X_test = X_test.float()
+        y_test = y_test.long()
+        prediction = skorch_gcn.predict(X_test)
+        accuracy = accuracy_score(y_test, prediction)
+        balanced_accuracy = balanced_accuracy_score(y_test, prediction)
         results.append(
             {
                 "subject": subject,
-                "accuracy": test_accuracy,
+                "accuracy": accuracy,
                 "balanced_accuracy": balanced_accuracy,
-                "predicted": pred.argmax(1),
-                "true": true,
+                "predicted": prediction,
+                "true": y_test,
                 "train_size": len(train),
                 "left_out": left_out,
                 "classifier": classifier,
@@ -316,25 +411,25 @@ def decode(
             }
         )
 
-        training_metrics.append(
-            {
-                "train_loss": train_losses,
-                "train_accuracy": train_accuracies,
-                "valid_loss": valid_losses,
-                "valid_accuracy": valid_accuracies,
-                "pred_prob": pred,
-            }
-        )
+        # training_metrics.append(
+        #     {
+        #         "train_loss": train_losses,
+        #         "train_accuracy": train_accuracies,
+        #         "valid_loss": valid_losses,
+        #         "valid_accuracy": valid_accuracies,
+        #         "pred_prob": pred,
+        #     }
+        # )
 
     results = pd.DataFrame(results)
     results.to_pickle(
         os.path.join(results_dir, f"results_clf_{classifier}_{subject}.pkl")
     )
 
-    training_metrics = pd.DataFrame(training_metrics)
-    training_metrics.to_pickle(
-        os.path.join(results_dir, f"training_metrics_{subject}.pkl")
-    )
+    # training_metrics = pd.DataFrame(training_metrics)
+    # training_metrics.to_pickle(
+    #     os.path.join(results_dir, f"training_metrics_{subject}.pkl")
+    # )
     return results
 
 
@@ -350,12 +445,12 @@ if __name__ == "__main__":
         # "bold5000_fold2",
         # "bold5000_fold3",
         # "bold5000_fold4",
-        # "neuromod",
+        "neuromod",
         # "aomic_gstroop",
         # "forrest",
         # "rsvp",
         # "aomic_anticipation",
-        "bold5000_fold1",
+        # "bold5000_fold1",
         # "aomic_faces",
         # "hcp_gambling",
         # "bold",
@@ -363,6 +458,12 @@ if __name__ == "__main__":
         # "ibc_aomic_gstroop",
         # "ibc_hcp_gambling",
     ]
+
+    # define the grid search parameters
+    param_grid = {
+        "batch_size": [4, 6, 8, 10],
+        "max_epochs": [10, 20, 30, 40, 50],
+    }
 
     for dataset in datas:
 
@@ -435,8 +536,10 @@ if __name__ == "__main__":
                 connectomes,
                 subject,
                 results_dir,
+                param_grid,
                 classifier="GNN",
                 random_state=0,
+                N_JOBS=5,
             )
             for subject in subjects
         )
@@ -449,8 +552,10 @@ if __name__ == "__main__":
         #         connectomes,
         #         subject,
         #         results_dir,
+        #         param_grid,
         #         classifier="GNN",
         #         random_state=0,
+        #         N_JOBS=5,
         #     )
         #     all_results.append(sub_res)
 
