@@ -29,7 +29,7 @@ conda activate ensemble_fmri_nopgpu
 
 ### Run the experiments
 
-For results to generate Fig 2 and Fig 3 (over varying training sizes) in the paper:
+To generate numbers plotted in Fig 2 and Fig 3 (over varying training sizes) in the paper:
 
 * with DiFuMo features, run the following command:
 
@@ -43,7 +43,7 @@ For results to generate Fig 2 and Fig 3 (over varying training sizes) in the pap
     python scripts/decode_vary_train_size/wholebrain.py
     ```
 
-For results to generate Fig 4 (over varying number of subjects in the ensemble) in the paper:
+To generate numbers plotted in Fig 4 (over varying number of subjects in the ensemble) in the paper:
 
 * with DiFuMo features, run the following command:
 
