@@ -2,3 +2,7 @@ data
 results
 test*
 deprecated/*results
+*.zip
+*.code-workspace
+*.vscode
+*__pycache__*
