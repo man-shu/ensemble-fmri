@@ -24,7 +24,7 @@ Create a new conda environment with the dependencies.
 
 ```bash
 conda env create -f env/main.yml
-conda activate ensemble_fmri_nopgpu
+conda activate ensemble_nopgpu
 ```
 
 ### Run the experiments
