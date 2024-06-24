@@ -104,7 +104,7 @@ def parcellate(
         subjects are the subject identifiers repeated for each trial.
     """
     data = dict(responses=[], conditions=[], runs=[], subjects=[])
-    parcellate_dir = os.path.join(data_dir, atlas.name)
+    parcellate_dir = os.path.join(data_dir, atlas["name"])
     os.makedirs(parcellate_dir, exist_ok=True)
     parc_file = os.path.join(parcellate_dir, f"{subject}.npy")
     mask = load_mni152_gm_mask(resolution=3)
@@ -112,7 +112,7 @@ def parcellate(
     if os.path.exists(parc_file):
         parc = np.load(parc_file)
     else:
-        if atlas.name == "wholebrain":
+        if atlas["name"] == "wholebrain":
             masker = maskers.NiftiMasker(
                 mask_img=mask,
                 verbose=11,
@@ -157,7 +157,7 @@ def pretrain(subject, data, dummy, data_dir, atlas):
     tuple
         Tuple containing subject identifier and pre-trained classifier object.
     """
-    pretrain_dir = os.path.join(data_dir, f"pretrain_{atlas.name}_l2")
+    pretrain_dir = os.path.join(data_dir, f"pretrain_{atlas["name"]}_l2")
     os.makedirs(pretrain_dir, exist_ok=True)
     if dummy:
         file_id = "dummy"
@@ -181,7 +181,6 @@ def pretrain(subject, data, dummy, data_dir, atlas):
     return (f"{subject}", clf)
 
 
-### classification function ###
 def _classify(
     clf,
     dummy_clf,

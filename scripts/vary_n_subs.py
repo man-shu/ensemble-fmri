@@ -1,4 +1,11 @@
+"""This script performs decoding on varying training sizes and varying number
+subjects in the ensemble, for five different datasets: neuromod, forrest, rsvp, 
+bold and aomic_anticipation, using either DiFuMo or full-voxel features.
+
+"""
+
 import pandas as pd
+from nilearn import datasets
 import numpy as np
 import os
 import seaborn as sns
@@ -8,12 +15,19 @@ import time
 from glob import glob
 import importlib.util
 import sys
-from sklearn.utils import Bunch
 
-N_JOBS = 10
-
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/data/"
-OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
+if len(sys.argv) != 5:
+    raise ValueError(
+        "Please provide the following arguments in that order: ",
+        "path to data, path to output, N parallel jobs, features.\n",
+        "For example: ",
+        "python scripts/decode_vary_train_size.py data . 20 wholebrain\n",
+    )
+else:
+    DATA_ROOT = sys.argv[1]
+    OUT_ROOT = sys.argv[2]
+    N_JOBS = sys.argv[3]
+    features = sys.argv[4]
 
 # load local utility functions
 spec = importlib.util.spec_from_file_location(
@@ -26,26 +40,13 @@ spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
 datas = [
-    # "bold5000_fold2",
-    # "bold5000_fold3",
-    # "bold5000_fold4",
     "neuromod",
-    # "aomic_gstroop",
     "forrest",
     "rsvp",
     "aomic_anticipation",
-    "bold5000_fold1",
-    # "aomic_faces",
-    # "hcp_gambling",
-    # "bold",
-    # "nsd",
-    # "ibc_aomic_gstroop",
-    # "ibc_hcp_gambling",
+    "bold",
 ]
-
 classifiers = ["LinearSVC", "RandomForest", "MLP"]
-# classifiers = ["MLP"]
-
 
 for dataset in datas:
     # input data root path
@@ -53,9 +54,14 @@ for dataset in datas:
     data_resolution = "3mm"  # or 1_5mm
     nifti_dir = os.path.join(data_dir, data_resolution)
 
-    # create fake, empty atlas object
-    atlas = Bunch()
-    atlas.name = "wholebrain"
+    # get difumo atlas
+    atlas = datasets.fetch_atlas_difumo(
+        dimension=1024,
+        resolution_mm=3,
+        data_dir=DATA_ROOT,
+        legacy_format=False,
+    )
+    atlas["name"] = "difumo"
 
     # output results path
     start_time = time.strftime("%Y%m%d-%H%M%S")

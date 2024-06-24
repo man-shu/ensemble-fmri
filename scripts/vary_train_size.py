@@ -1,4 +1,11 @@
+"""This script performs decoding on varying training sizes in two settings:
+conventional and ensemble, for five different datasets: neuromod, forrest, 
+rsvp, bold and aomic_anticipation, using either DiFuMo or full-voxel features.
+
+"""
+
 import pandas as pd
+from nilearn import datasets
 import numpy as np
 import os
 import seaborn as sns
@@ -8,14 +15,20 @@ import time
 from glob import glob
 import importlib.util
 import sys
-from sklearn.utils import Bunch
 
-# from utils import parcellate, pretrain, decode, generate_sub_clf_combinations
+if len(sys.argv) != 5:
+    raise ValueError(
+        "Please provide the following arguments in that order: ",
+        "path to data, path to output, N parallel jobs, features.\n",
+        "For example: ",
+        "python scripts/decode_vary_train_size.py data . 20 wholebrain\n",
+    )
 
-N_JOBS = 20
-
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/data/"
-OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
+else:
+    DATA_ROOT = sys.argv[1]
+    OUT_ROOT = sys.argv[2]
+    N_JOBS = sys.argv[3]
+    features = sys.argv[4]
 
 # load local utility functions
 spec = importlib.util.spec_from_file_location(
@@ -28,24 +41,13 @@ spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
 datas = [
-    # "bold5000_fold2",
-    # "bold5000_fold3",
-    # "bold5000_fold4",
-    # "neuromod",
-    # "aomic_gstroop",
-    # "forrest",
-    # "rsvp",
+    "neuromod",
+    "forrest",
+    "rsvp",
+    "bold",
     "aomic_anticipation",
-    # "bold5000_fold1",
-    # "aomic_faces",
-    # "hcp_gambling",
-    # "bold",
-    # "nsd",
-    # "ibc_aomic_gstroop",
-    # "ibc_hcp_gambling",
 ]
 classifiers = ["LinearSVC", "RandomForest", "MLP"]
-# classifiers = []
 
 for dataset in datas:
     # input data root path
@@ -53,9 +55,21 @@ for dataset in datas:
     data_resolution = "3mm"  # or 1_5mm
     nifti_dir = os.path.join(data_dir, data_resolution)
 
-    # create fake, empty atlas object
-    atlas = Bunch()
-    atlas.name = "wholebrain"
+    if features == "wholebrain":
+        # create fake, empty atlas object
+        atlas = {}
+        atlas["name"] = "wholebrain"
+    elif features == "difumo":
+        # get difumo atlas
+        atlas = datasets.fetch_atlas_difumo(
+            dimension=1024,
+            resolution_mm=3,
+            data_dir=DATA_ROOT,
+            legacy_format=False,
+        )
+        atlas["name"] = "difumo"
+    else:
+        raise ValueError(f"Unknown feature set: {features}")
 
     # output results path
     start_time = time.strftime("%Y%m%d-%H%M%S")
@@ -105,11 +119,11 @@ for dataset in datas:
 
     print(f"\nPretraining linear classifiers on {dataset}...")
     fitted_classifiers = Parallel(
-        n_jobs=N_JOBS * 2, verbose=11, backend="multiprocessing"
+        n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
         delayed(utils.pretrain)(
-            subject,
-            data,
+            subject=subject,
+            data=data,
             dummy=False,
             data_dir=data_dir,
             atlas=atlas,
@@ -119,7 +133,9 @@ for dataset in datas:
 
     print(f"\nRunning cross-val on {dataset}...")
     all_results = Parallel(
-        n_jobs=N_JOBS * 2, verbose=2, backend="multiprocessing"
+        n_jobs=N_JOBS,
+        verbose=2,
+        backend="multiprocessing",
     )(
         delayed(utils.decode)(
             subject,
@@ -130,32 +146,15 @@ for dataset in datas:
             dummy_fitted_classifiers,
             results_dir,
             dataset,
-            feat_imp=False,
         )
         for subject, subject_i, clf in utils.generate_sub_clf_combinations(
             subjects, classifiers
         )
     )
-    # all_results = []
-    # for subject, subject_i, clf in generate_sub_clf_combinations(
-    #     subjects, classifiers
-    # ):
-    #     print(subject, subject_i)
-    #     result = decode(
-    #         subject,
-    #         subject_i,
-    #         data,
-    #         clf,
-    #         fitted_classifiers,
-    #         dummy_fitted_classifiers,
-    #         results_dir,
-    #     )
-    #     all_results.append(result)
 
     print(f"\nPlotting results for {dataset}...")
     df = pd.concat(all_results)
     df["setting_classifier"] = df["setting"] + "_" + df["classifier"]
-
     sns.pointplot(
         data=df, x="train_size", y="accuracy", hue="setting_classifier"
     )
@@ -172,6 +171,22 @@ for dataset in datas:
     plt.ylabel("Accuracy")
     plt.xlabel("Training size")
     plt.savefig(os.path.join(results_dir, f"box_accuracy_{start_time}.png"))
+    plt.close()
+
+    sns.pointplot(
+        data=df,
+        x="train_size",
+        y="balanced_accuracy",
+        hue="setting_classifier",
+    )
+    plt.axhline(
+        y=df["dummy_balanced_accuracy"].mean(), color="k", linestyle="--"
+    )
+    plt.ylabel("Balanced Accuracy")
+    plt.xlabel("Training size")
+    plt.savefig(
+        os.path.join(results_dir, f"balanced_accuracy_{start_time}.png")
+    )
     plt.close()
 
     sns.pointplot(
