@@ -21,7 +21,7 @@ if len(sys.argv) != 5:
         "Please provide the following arguments in that order: ",
         "path to data, path to output, N parallel jobs, features.\n",
         "For example: ",
-        "python scripts/decode_vary_train_size.py data . 20 wholebrain\n",
+        "python scripts/decode_vary_train_size.py data . 20 voxels\n",
     )
 
 else:
@@ -55,7 +55,7 @@ for dataset in datas:
     data_resolution = "3mm"  # or 1_5mm
     nifti_dir = os.path.join(data_dir, data_resolution)
 
-    if features == "wholebrain":
+    if features == "voxels":
         # create fake, empty atlas object
         atlas = {}
         atlas["name"] = "wholebrain"

@@ -54,14 +54,21 @@ for dataset in datas:
     data_resolution = "3mm"  # or 1_5mm
     nifti_dir = os.path.join(data_dir, data_resolution)
 
-    # get difumo atlas
-    atlas = datasets.fetch_atlas_difumo(
-        dimension=1024,
-        resolution_mm=3,
-        data_dir=DATA_ROOT,
-        legacy_format=False,
-    )
-    atlas["name"] = "difumo"
+    if features == "voxels":
+        # create fake, empty atlas object
+        atlas = {}
+        atlas["name"] = "wholebrain"
+    elif features == "difumo":
+        # get difumo atlas
+        atlas = datasets.fetch_atlas_difumo(
+            dimension=1024,
+            resolution_mm=3,
+            data_dir=DATA_ROOT,
+            legacy_format=False,
+        )
+        atlas["name"] = "difumo"
+    else:
+        raise ValueError(f"Unknown feature set: {features}")
 
     # output results path
     start_time = time.strftime("%Y%m%d-%H%M%S")

@@ -31,30 +31,30 @@ conda activate ensemble_fmri_nopgpu
 
 To generate numbers plotted in Fig 2 and Fig 3 (over varying training sizes) in the paper:
 
-* with DiFuMo features, run the following command:
+* using the data in the `data` directory, saving the results in the current directory, with 20 parallel jobs, and DiFuMo features, run the following command:
 
     ```bash
-    python scripts/decode_vary_train_size/difumo.py
+    python scripts/vary_train_size.py data results 20 difumo
     ```
 
-* with voxel-wise features, run the following command:
+* or with full-voxel space features, run the following command:
 
     ```bash
-    python scripts/decode_vary_train_size/wholebrain.py
+    python scripts/vary_train_size.py data results 20 voxels
     ```
 
 To generate numbers plotted in Fig 4 (over varying numbers of subjects in the ensemble) in the paper:
 
-* with DiFuMo features, run the following command:
+* using the data in the `data` directory, saving the results in the current directory, with 20 parallel jobs, and DiFuMo features, run the following command:
 
     ```bash
-    python scripts/decode_vary_subjects/vary_n_subs_difumo.py
+    python scripts/vary_n_subs.py data results 20 difumo
     ```
 
-* with voxel-wise features, run the following command:
+* or with full-voxel space features, run the following command:
 
     ```bash
-    python scripts/decode_vary_subjects/vary_n_subs_wholebrain.py
+    python scripts/vary_n_subs.py data results 20 voxels
     ```
 
 ## Abstract
