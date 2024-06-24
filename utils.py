@@ -18,12 +18,33 @@ from joblib import dump, load
 from sklearn.ensemble import StackingClassifier, RandomForestClassifier
 from glob import glob
 from nilearn.datasets import load_mni152_gm_mask
-from BBI import BlockBasedImportance
+
+# from BBI import BlockBasedImportance
 from joblib import dump, load
 
 
-### get class and group labels ###
 def _get_labels(subject, parc, nifti_dir):
+    """Load labels and runs for a given subject as numpy arrays.
+
+    Parameters
+    ----------
+    subject : str
+        Subject identifier.
+    parc : np.ndarray
+        Brain data as numpy array with shape (n_samples, n_features).
+        Only used to get the number of trials.
+    nifti_dir : str
+        directory containing the labels and runs files.
+
+    Returns
+    -------
+    conditions : np.ndarray
+        Trial-wise labels as numpy array.
+    runs : np.ndarray
+        Run number for each trial as numpy array.
+    subs : np.ndarray
+        A numpy array with subject identifier repeated for each trial.
+    """
     # get class labels
     label_file = glob(os.path.join(nifti_dir, f"{subject}_labels*"))[0]
     _, label_ext = os.path.splitext(label_file)
@@ -50,7 +71,6 @@ def _get_labels(subject, parc, nifti_dir):
     return conditions, runs, subs
 
 
-### parcellate data ###
 def parcellate(
     img,
     subject,
@@ -58,6 +78,31 @@ def parcellate(
     data_dir,
     nifti_dir,
 ):
+    """Convert nifti image to numpy array. If atlas is wholebrain, use
+    nilearn.maskers.NiftiMasker, otherwise use nilearn.maskers.NiftiMapsMasker.
+
+    Parameters
+    ----------
+    img : Nifti1Image
+        Nifti image to be converted to numpy array.
+    subject : str
+        Subject identifier.
+    atlas : sklearn.datasets.base.Bunch
+        Dictionary containing the atlas maps and name.
+    data_dir : str
+        path to directory containing atlas/parcellation
+    nifti_dir : str
+        directory containing the labels and runs files.
+
+    Returns
+    -------
+    data : dict
+        Dictionary containing responses, conditions, runs, and subjects as
+        keys, and values are corresponding numpy arrrays. Responses are the
+        brain data parcellated or not depending on the atlas. Conditions are
+        the trial-wise labels, runs are the run numbers for each trial, and
+        subjects are the subject identifiers repeated for each trial.
+    """
     data = dict(responses=[], conditions=[], runs=[], subjects=[])
     parcellate_dir = os.path.join(data_dir, atlas.name)
     os.makedirs(parcellate_dir, exist_ok=True)
@@ -90,49 +135,28 @@ def parcellate(
     return data
 
 
-# ### parcellate data ###
-# def parcellate(
-#     img,
-#     subject,
-#     atlas,
-#     data_dir,
-#     nifti_dir,
-# ):
-#     data = dict(responses=[], conditions=[], runs=[], subjects=[])
-#     parcellate_dir = os.path.join(data_dir, atlas.name)
-#     os.makedirs(parcellate_dir, exist_ok=True)
-#     parc_file = os.path.join(parcellate_dir, f"{subject}.npy")
-#     if os.path.exists(parc_file):
-#         parc = np.load(parc_file)
-#     else:
-#         if atlas.name == "wholebrain":
-#             ref_img = image.index_img(img, 0)
-#             ref_img_shape = ref_img.shape
-#             wholebrain_mask = image.new_img_like(
-#                 ref_img, np.ones(ref_img_shape)
-#             )
-#             masker = maskers.NiftiMasker(
-#                 mask_img=wholebrain_mask,
-#                 memory_level=0,
-#                 verbose=11,
-#                 n_jobs=20,
-#             )
-#         else:
-#             masker = maskers.NiftiMapsMasker(
-#                 maps_img=atlas["maps"], memory_level=0, verbose=11, n_jobs=20
-#             )
-#         parc = masker.fit_transform(img)
-#         np.save(parc_file, parc)
-#     conditions, runs, subs = _get_labels(subject, parc, nifti_dir)
-#     data["responses"] = parc
-#     data["conditions"] = conditions
-#     data["runs"] = runs
-#     data["subjects"] = subs
-#     return data
-
-
-#### pretraining for stacking ####
 def pretrain(subject, data, dummy, data_dir, atlas):
+    """Pretrain a classifier for stacking on a given subject.
+
+    Parameters
+    ----------
+    subject : str
+        Subject identifier to pretrain the classifier.
+    data : dict
+        Dictionary containing responses, conditions, runs, and subjects as
+        numpy arrays
+    dummy : bool
+        If True pretrain a dummy classifier, otherwise pretrain a linear SVC.
+    data_dir : str
+        path to directory to save pretrain classifiers
+    atlas : sklearn.datasets.base.Bunch
+        Dictionary containing the atlas maps and name.
+
+    Returns
+    -------
+    tuple
+        Tuple containing subject identifier and pre-trained classifier object.
+    """
     pretrain_dir = os.path.join(data_dir, f"pretrain_{atlas.name}_l2")
     os.makedirs(pretrain_dir, exist_ok=True)
     if dummy:
@@ -173,6 +197,50 @@ def _classify(
     n_stacked=None,
     vary_n_stacked=False,
 ):
+    """Fit a classifier and predict on test data.
+
+    Parameters
+    ----------
+    clf : sklearn estimator
+        Classifier to be fitted.
+    dummy_clf : sklearn Dummy estimator
+        Dummy classifier to be fitted.
+    train : np.ndarray
+        indices of training data.
+    test : np.ndarray
+        indices of test data.
+    X : np.ndarray
+        Brain data as numpy array with shape (n_samples, n_features).
+    Y : np.ndarray
+        Trial-wise labels as numpy array.
+    setting : str
+        Type of classifier setting, conventional or stacked (ensemble). Only
+        used while saving the results for later filtering during analysis.
+    n_left_out : float
+        Percentage of samples left out for testing. Only used while saving the
+        results for later filtering during analysis.
+    classifier : str
+        Name of the classifier. Only used while saving the results for later
+        filtering during analysis.
+    subject : str
+        Subject identifier. Only used while saving the results for later
+        filtering during analysis.
+    subs_stacked : list, optional
+        list of subjects stacked in the ensemble. Only used when we vary the
+        number of subjects stacked. Saved with the results for later
+        filtering during analysis, by default None
+    n_stacked : int, optional
+        number of stacked subjects in the ensemble. Only used while saving the
+        results for later filtering during analysis, by default None
+    vary_n_stacked : bool, optional
+        Whether we are varying the number of subjects or not, by default False
+
+    Returns
+    -------
+    dict
+        Dictionary containing the results of the classification and the
+        corresponding metadata.
+    """
     result = {}
     clf.fit(X[train], Y[train])
     dummy_clf.fit(X[train], Y[train])
@@ -201,7 +269,6 @@ def _classify(
     return result
 
 
-### plot cv splits ###
 def _plot_cv_indices(
     cv,
     X,
@@ -270,7 +337,6 @@ def _plot_cv_indices(
     plt.close()
 
 
-### cross-validation ###
 def decode(
     subject,
     subject_i,
@@ -281,6 +347,46 @@ def decode(
     results_dir,
     dataset,
 ):
+    """Main function to classify data using conventional and stacked settings.
+    We keep 90% of data for training and 10\% for testing. We vary the size of
+    the training set over 10 geometrically increasing sub-samples of that
+    initial 90\% training split and always test the trained model on the same
+    10% testing split. We do this for 20 different cross-validation train-test
+    splits. Note that in the ensemble approach, while pre-training the
+    classifiers, we use all the samples available in each subject.
+
+    Parameters
+    ----------
+    subject : str
+        Subject identifier of the current subject to decode.
+    subject_i : str
+        Index of the subject in the data. Used to remove the current subject
+        from the pre-trained classifiers.
+    data : dict
+        Dictionary containing responses, conditions, runs, and subjects as
+        numpy arrays.
+    classifier : str
+        Name of the classifier to be used for decoding. This is the classifier
+        used as the final estimator in the ensemble approach. For the
+        conventional approach, we use the same classifier.
+    fitted_classifiers : list of tuples
+        List of tuples containing the subject identifier and the pre-trained
+        classifier object. Used as the estimators in the main ensemble
+        approach.
+    dummy_fitted_classifiers : list of tuples
+        List of tuples containing the subject identifier and the pre-trained
+        dummy classifier object. Used as the estimators in the dummy ensemble
+        approach.
+    results_dir : str
+        Directory to save the results of the classification.
+    dataset : str
+        Name of the dataset being used for decoding.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the results of the classification.
+    """
     results = []
     # select data for current subject
     sub_mask = np.where(data["subjects"] == subject)[0]
@@ -301,7 +407,7 @@ def decode(
     elif classifier == "RandomForest":
         clf = RandomForestClassifier(n_estimators=500, random_state=0)
     elif classifier == "MLP":
-        clf = MLPClassifier(random_state=0, max_iter=1000, verbose=11)
+        clf = MLPClassifier(random_state=0, max_iter=1000)
     count = 0
     _plot_cv_indices(
         cv,
@@ -339,7 +445,7 @@ def decode(
                 )
             clf = clone(clf)
             dummy_clf = DummyClassifier(strategy="most_frequent")
-            conventional_result, conventional_imp = _classify(
+            conventional_result = _classify(
                 clf,
                 dummy_clf,
                 train_,
@@ -367,7 +473,7 @@ def decode(
                 final_estimator=DummyClassifier(strategy="most_frequent"),
                 cv="prefit",
             )
-            stacked_result, stacked_imp = _classify(
+            stacked_result = _classify(
                 stacked_clf,
                 dummy_stacked_clf,
                 train_,
@@ -383,8 +489,11 @@ def decode(
             results.append(stacked_result)
 
             print(
-                f"{classifier} {left_out*100:.2f}% left-out, {subject}, split {count} :",
-                f"{conventional_result['balanced_accuracy']:.2f} | {stacked_result['balanced_accuracy']:.2f} / {stacked_result['dummy_balanced_accuracy']:.2f}",
+                f"{classifier} {left_out*100:.2f}% left-out, {subject},",
+                f" split {count} :",
+                f"{conventional_result['balanced_accuracy']:.2f} | ",
+                f"{stacked_result['balanced_accuracy']:.2f} / ",
+                f"{stacked_result['dummy_balanced_accuracy']:.2f}",
             )
 
         count += 1
@@ -396,14 +505,28 @@ def decode(
     return results
 
 
-### generator for subject classifier combinations ###
 def generate_sub_clf_combinations(subjects, classifiers):
+    """Generate all possible combinations of subjects and classifiers. Used to
+    run each subject with each classifier in parallel.
+
+    Parameters
+    ----------
+    subjects : str
+        List of subject identifiers.
+    classifiers : str
+        List of classifier names.
+
+    Yields
+    ------
+    tuple
+        Tuple containing the subject identifier, index of the subject
+        and the classifier name.
+    """
     for subject_i, subject in enumerate(subjects):
         for clf in classifiers:
             yield subject, subject_i, clf
 
 
-### stacked cross-validation with varying number of subjects stacked ###
 def vary_stacked_subs(
     subject,
     subject_i,
@@ -416,6 +539,55 @@ def vary_stacked_subs(
     how_many_n_stacked=20,
     reps_for_each_n_stacked=1,
 ):
+    """This function is used to vary the number of subjects stacked in the
+    ensemble. Here we randomly sample a subset of subjects from each dataset
+    and only use the pre-trained classifiers from these subjects to train
+    the final classifier. We cross-validate for each subset of subjects,
+    by keeping 90% of data for training and 10\% for testing. We vary the
+    size of the training set over 10 geometrically increasing sub-samples of
+    that initial 90\% training split and always test the trained model on
+    the same 10% testing split. We do this for 5 different cross-validation
+    train-test splits, such that each split has a different subset of subjects,
+    whenever possible.
+
+    Parameters
+    ----------
+    subject : str
+        Subject identifier of the current subject to decode.
+    subject_i : str
+        Index of the subject in the data. Used to remove the current subject
+        from the pre-trained classifiers.
+    data : dict
+        Dictionary containing responses, conditions, runs, and subjects as
+        numpy arrays.
+    classifier : str
+        Name of the classifier to be used for decoding. This is the classifier
+        used as the final estimator in the ensemble approach. For the
+        conventional approach, we use the same classifier.
+    fitted_classifiers : list of tuples
+        List of tuples containing the subject identifier and the pre-trained
+        classifier object. Used as the estimators in the main ensemble
+        approach.
+    dummy_fitted_classifiers : list of tuples
+        List of tuples containing the subject identifier and the pre-trained
+        dummy classifier object. Used as the estimators in the dummy ensemble
+        approach.
+    results_dir : str
+        Directory to save the results of the classification.
+    dataset : str
+        Name of the dataset being used for decoding.
+    how_many_n_stacked : int, optional
+        number of subjects stacked, by default 20
+    reps_for_each_n_stacked : int, optional
+        how many repetitions to do for a given number of subjects to be stacked
+        we only use 1 rep here but can be increased to get more stable
+        results for each number of subjects stacked, by default 1
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the results of the classification.
+    """
     results = []
     # select data for current subject
     sub_mask = np.where(data["subjects"] == subject)[0]
@@ -533,7 +705,7 @@ def vary_stacked_subs(
                         ),
                         cv="prefit",
                     )
-                    stacked_result, _ = _classify(
+                    stacked_result = _classify(
                         stacked_clf,
                         dummy_stacked_clf,
                         train_,
@@ -574,6 +746,49 @@ def feature_importance(
     dataset,
     n_jobs,
 ):
+    """Compute feature importance using the BlockBasedImportance method.
+    We only compute the feature importance for the stacked classifier, using
+    DiFuMo features and the Random Forest classiifer as the final classifier
+    (which is the only one we change, the first classifier is still LinearSVC).
+    These scores correspond to DiFuMo features but can later be projected to
+    the full-voxel feature space.
+
+    Note that this computation is independent of the other decoding
+    experiments, the BlockBasedImportance estimator internally fits the
+    decoding object and then computes the importance scores.
+
+    Parameters
+    ----------
+    subject : str
+        Subject identifier for the current subject to do decode and then get
+        the importances for.
+    subject_i : str
+        Index of the current subject
+    data : dict
+        Dictionary containing responses, conditions, runs, and subjects as
+        numpy arrays.
+    classifier : str
+        Name of the classifier to be used for decoding. This is the classifier
+        used as the final estimator in the ensemble approach. Only works with
+        RandomForest as of now.
+    fitted_classifiers : list of tuples
+        List of tuples containing the subject identifier and the pre-trained
+        classifier object.
+    dummy_fitted_classifiers : list of tuples
+        List of tuples containing the subject identifier and the pre-trained
+        dummy classifier object.
+    results_dir : str
+        Directory to save the results of the classification.
+    dataset : str
+        Name of the dataset being used for decoding.
+    n_jobs : int
+        Number of jobs to run in parallel for the BlockBasedImportance method.
+
+    Returns
+    -------
+    dict
+        Dictionary containing the feature importance scores for the stacked
+    """
     # select data for current subject
     sub_mask = np.where(data["subjects"] == subject)[0]
     X = data["responses"][sub_mask]
@@ -585,23 +800,7 @@ def feature_importance(
     elif classifier == "RandomForest":
         clf = RandomForestClassifier(n_estimators=500, random_state=0)
     elif classifier == "MLP":
-        clf = MLPClassifier(random_state=0, max_iter=1000, verbose=11)
-    # importance estimator
-    # conventional_bbi_model = BlockBasedImportance(
-    #     estimator=clf,
-    #     prob_type="classification",
-    #     n_jobs=50,
-    #     random_state=0,
-    #     verbose=11,
-    #     do_hyper=False,
-    # )
-    # conventional_bbi_model.fit(X, Y)
-    # conventional_importance = conventional_bbi_model.compute_importance()
-    # conventional_importance["subject"] = subject
-    # conventional_importance["classifier"] = classifier
-    # conventional_importance["setting"] = "conventional"
-    # conventional_importance["dataset"] = dataset
-    # results.append(conventional_importance)
+        clf = MLPClassifier(random_state=0, max_iter=1000)
 
     # remove current subject from fitted classifiers
     fitted_classifiers_ = fitted_classifiers.copy()
