@@ -6,3 +6,4 @@ deprecated/*results
 *.code-workspace
 *.vscode
 *__pycache__*
+*DS_Store*
