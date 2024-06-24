@@ -1,6 +1,5 @@
 data
 results
-test*
 deprecated/*results
 *.zip
 *.code-workspace
