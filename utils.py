@@ -605,7 +605,7 @@ def vary_stacked_subs(
     elif classifier == "RandomForest":
         clf = RandomForestClassifier(n_estimators=500, random_state=0)
     elif classifier == "MLP":
-        clf = MLPClassifier(random_state=0, max_iter=1000, verbose=11)
+        clf = MLPClassifier(random_state=0, max_iter=1000)
     count = 0
     _plot_cv_indices(
         cv,
