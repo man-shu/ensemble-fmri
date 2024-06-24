@@ -347,9 +347,9 @@ def decode(
     dataset,
 ):
     """Main function to classify data using conventional and stacked settings.
-    We keep 90% of data for training and 10\% for testing. We vary the size of
+    We keep 90% of data for training and 10% for testing. We vary the size of
     the training set over 10 geometrically increasing sub-samples of that
-    initial 90\% training split and always test the trained model on the same
+    initial 90% training split and always test the trained model on the same
     10% testing split. We do this for 20 different cross-validation train-test
     splits. Note that in the ensemble approach, while pre-training the
     classifiers, we use all the samples available in each subject.
@@ -542,9 +542,9 @@ def vary_stacked_subs(
     ensemble. Here we randomly sample a subset of subjects from each dataset
     and only use the pre-trained classifiers from these subjects to train
     the final classifier. We cross-validate for each subset of subjects,
-    by keeping 90% of data for training and 10\% for testing. We vary the
+    by keeping 90% of data for training and 10% for testing. We vary the
     size of the training set over 10 geometrically increasing sub-samples of
-    that initial 90\% training split and always test the trained model on
+    that initial 90% training split and always test the trained model on
     the same 10% testing split. We do this for 5 different cross-validation
     train-test splits, such that each split has a different subset of subjects,
     whenever possible.

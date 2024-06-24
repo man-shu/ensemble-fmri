@@ -1,4 +1,4 @@
-name: ensemble_fmri
+name: ensemble_gpu
 channels:
   - conda-forge
   - defaults

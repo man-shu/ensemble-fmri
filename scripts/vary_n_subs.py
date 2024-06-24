@@ -32,7 +32,7 @@ else:
 # load local utility functions
 spec = importlib.util.spec_from_file_location(
     "utils",
-    os.path.join(OUT_ROOT, "utils.py"),
+    os.path.join("utils.py"),
 )
 utils = importlib.util.module_from_spec(spec)
 sys.modules["utils"] = utils
@@ -72,7 +72,7 @@ for dataset in datas:
 
     # output results path
     start_time = time.strftime("%Y%m%d-%H%M%S")
-    results_dir = f"{dataset}_{atlas.name}_varysubs_{start_time}"
+    results_dir = f"{dataset}_{features}_varysubs"
     results_dir = os.path.join(OUT_ROOT, results_dir)
     os.makedirs(results_dir, exist_ok=True)
 
@@ -150,21 +150,6 @@ for dataset in datas:
             subjects, classifiers
         )
     )
-    # all_results = []
-    # for subject, subject_i, clf in generate_sub_clf_combinations(
-    #     subjects, classifiers
-    # ):
-    #     print(subject, subject_i)
-    #     result = decode(
-    #         subject,
-    #         subject_i,
-    #         data,
-    #         clf,
-    #         fitted_classifiers,
-    #         dummy_fitted_classifiers,
-    #         results_dir,
-    #     )
-    #     all_results.append(result)
 
     print(f"\nPlotting results for {dataset}...")
     df = pd.concat(all_results)
@@ -182,7 +167,7 @@ for dataset in datas:
     plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
     plt.ylabel("Accuracy")
     plt.xlabel("No. of subjects stacked")
-    plt.savefig(os.path.join(results_dir, f"box_accuracy_{start_time}.png"))
+    plt.savefig(os.path.join(results_dir, f"box_accuracy.png"))
     plt.close()
 
     sns.pointplot(
@@ -196,9 +181,7 @@ for dataset in datas:
     )
     plt.ylabel("Balanced Accuracy")
     plt.xlabel("No. of subjects stacked")
-    plt.savefig(
-        os.path.join(results_dir, f"balanced_accuracy_{start_time}.png")
-    )
+    plt.savefig(os.path.join(results_dir, f"balanced_accuracy.png"))
     plt.close()
 
     sns.pointplot(
@@ -212,9 +195,7 @@ for dataset in datas:
     )
     plt.ylabel("Balanced Accuracy")
     plt.xlabel("No. of subjects stacked")
-    plt.savefig(
-        os.path.join(results_dir, f"balanced_accuracy_{start_time}.png")
-    )
+    plt.savefig(os.path.join(results_dir, f"balanced_accuracy.png"))
     plt.close()
 
     sns.boxplot(
@@ -228,7 +209,5 @@ for dataset in datas:
     )
     plt.ylabel("Balanced Accuracy")
     plt.xlabel("No. of subjects stacked")
-    plt.savefig(
-        os.path.join(results_dir, f"box_balanced_accuracy_{start_time}.png")
-    )
+    plt.savefig(os.path.join(results_dir, f"box_balanced_accuracy.png"))
     plt.close()

@@ -1,4 +1,4 @@
-name: ensemble_fmri_nopgpu
+name: ensemble_nopgpu
 channels:
   - defaults
 dependencies:
