@@ -1,4 +1,4 @@
-name: ensemble_nopgpu
+name: ensemble_nogpu
 channels:
   - defaults
 dependencies:
