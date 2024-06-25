@@ -1,20 +1,36 @@
-import pandas as pd
-from nilearn import datasets, maskers, plotting
+"""
+Compute feature importance using the BlockBasedImportance method.
+We only compute the feature importance for the stacked classifier, using
+DiFuMo features and the Random Forest classiifer as the final classifier
+(which is the only one we change, the first classifier is still LinearSVC).
+These scores correspond to DiFuMo features but can later be projected to
+the full-voxel feature space.
+
+Note that this computation is independent of the other decoding
+experiments. The BlockBasedImportance estimator internally fits the
+decoding object and then computes the importance scores.
+"""
 import numpy as np
 import os
-import seaborn as sns
-import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 import time
 from glob import glob
 import importlib.util
 import sys
 from tqdm import tqdm
+from nilearn import datasets
 
-N_JOBS = 15
-
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/data/"
-OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
+if len(sys.argv) != 5:
+    raise ValueError(
+        "Please provide the following arguments in that order: ",
+        "path to data, path to output, N parallel jobs.\n",
+        "For example: ",
+        "python scripts/feat_imp.py data results 20\n",
+    )
+else:
+    DATA_ROOT = sys.argv[1]
+    OUT_ROOT = sys.argv[2]
+    N_JOBS = sys.argv[3]
 
 # load local utility functions
 spec = importlib.util.spec_from_file_location(
@@ -27,24 +43,12 @@ spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
 datas = [
-    # "bold5000_fold2",
-    # "bold5000_fold3",
-    # "bold5000_fold4",
     "neuromod",
-    # "aomic_gstroop",
     "forrest",
     "rsvp",
     "aomic_anticipation",
-    # "bold5000_fold1",
-    # "aomic_faces",
-    # "hcp_gambling",
-    # "bold",
-    # "nsd",
-    # "ibc_aomic_gstroop",
-    # "ibc_hcp_gambling",
 ]
 classifiers = ["RandomForest"]
-# classifiers = ["LinearSVC", "RandomForest", "MLP"]
 
 for dataset in datas:
     # input data root path
@@ -62,23 +66,13 @@ for dataset in datas:
     atlas["name"] = "difumo"
 
     # output results path
-    start_time = time.strftime("%Y%m%d-%H%M%S")
-    results_dir = f"{dataset}_{atlas.name}_featimp_{start_time}"
+    results_dir = f"{dataset}_{atlas["name"]}_featimp"
     results_dir = os.path.join(OUT_ROOT, results_dir)
     os.makedirs(results_dir, exist_ok=True)
 
     # get file names
     imgs = glob(os.path.join(nifti_dir, "*.nii.gz"))
     subjects = [os.path.basename(img).split(".")[0] for img in imgs]
-
-    # drop subjects with missing data
-    # drop_subs = pd.read_csv(
-    #     os.path.join(data_dir, "subs_to_drop_right-left.csv"),
-    #     header=None,
-    #     index_col=None,
-    # )
-    # drop_subs = drop_subs[0].values
-    # subjects = [sub for sub in subjects if sub not in drop_subs]
 
     print(f"\nParcellating {dataset}...")
     data = Parallel(n_jobs=N_JOBS, verbose=11, backend="multiprocessing")(
@@ -104,7 +98,7 @@ for dataset in datas:
 
     print(f"\nPretraining dummy classifiers on {dataset}...")
     dummy_fitted_classifiers = Parallel(
-        n_jobs=N_JOBS * 2, verbose=11, backend="multiprocessing"
+        n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
         delayed(utils.pretrain)(
             subject=subject,
@@ -118,7 +112,7 @@ for dataset in datas:
 
     print(f"\nPretraining linear classifiers on {dataset}...")
     fitted_classifiers = Parallel(
-        n_jobs=N_JOBS * 2, verbose=11, backend="multiprocessing"
+        n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
         delayed(utils.pretrain)(
             subject=subject,
@@ -129,27 +123,6 @@ for dataset in datas:
         )
         for subject in subjects
     )
-
-    # print(f"\nRunning cross-val on {dataset}...")
-    # all_results = Parallel(
-    #     n_jobs=N_JOBS * 2,
-    #     verbose=2,
-    #     backend="multiprocessing",
-    # )(
-    #     delayed(utils.feature_importance)(
-    #         subject,
-    #         subject_i,
-    #         data,
-    #         clf,
-    #         fitted_classifiers,
-    #         dummy_fitted_classifiers,
-    #         results_dir,
-    #         dataset,
-    #     )
-    #     for subject, subject_i, clf in utils.generate_sub_clf_combinations(
-    #         subjects, classifiers
-    #     )
-    # )
 
     all_results = []
     for subject, subject_i, clf in tqdm(
