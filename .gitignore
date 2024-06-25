@@ -7,3 +7,4 @@ deprecated/*results
 *__pycache__*
 *DS_Store*
 zenodo
+Variable_Importance
