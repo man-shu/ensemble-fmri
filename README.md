@@ -10,7 +10,7 @@ git clone git@github.com:man-shu/ensemble-fmri.git
 
 ### Download the data
 
-Download downsampled 3mm event-wise GLM effect-size maps of fMRI datasets.
+Download downsampled 3mm event-wise GLM effect-size maps of fMRI datasets. It is only ~7GB in size. Yes it is indeed _small_
 
 ```bash
 cd ensemble-fmri
@@ -56,6 +56,31 @@ To generate numbers plotted in Fig 4 (over varying numbers of subjects in the en
     ```bash
     python scripts/vary_n_subs.py data results 20 voxels
     ```
+
+## Time taken
+
+We ran the experiments on a CPU-based cluster with 72 nodes and 376 GB of RAM.
+
+The time taken for each experiment is as follows:
+
+```bash
+# command
+time python scripts/vary_train_size.py data results 20 difumo  
+
+# output
+264026.23s user 4271.26s system 1606% cpu 4:38:23.80 total
+```
+
+```bash
+# command
+time python scripts/vary_train_size.py data results 20 voxels  
+
+# output
+541518.33s user 20061.83s system 1715% cpu 9:05:44.40 total
+```
+
+
+
 
 ## Abstract
 
