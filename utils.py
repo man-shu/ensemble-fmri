@@ -7,7 +7,6 @@ from sklearn.svm import LinearSVC
 from sklearn.neural_network import MLPClassifier
 from sklearn.dummy import DummyClassifier
 from sklearn.model_selection import (
-    ShuffleSplit,
     StratifiedShuffleSplit,
     train_test_split,
 )
@@ -18,8 +17,7 @@ from joblib import dump, load
 from sklearn.ensemble import StackingClassifier, RandomForestClassifier
 from glob import glob
 from nilearn.datasets import load_mni152_gm_mask
-
-# from BBI import BlockBasedImportance
+from BBI import BlockBasedImportance
 from joblib import dump, load
 
 
