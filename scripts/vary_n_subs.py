@@ -103,7 +103,7 @@ for dataset in datas:
 
     print(f"\nPretraining dummy classifiers on {dataset}...")
     dummy_fitted_classifiers = Parallel(
-        n_jobs=N_JOBS * 2, verbose=11, backend="multiprocessing"
+        n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
         delayed(utils.pretrain)(
             subject=subject,
@@ -117,7 +117,7 @@ for dataset in datas:
 
     print(f"\nPretraining linear classifiers on {dataset}...")
     fitted_classifiers = Parallel(
-        n_jobs=N_JOBS * 2, verbose=11, backend="multiprocessing"
+        n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
         delayed(utils.pretrain)(
             subject=subject,
@@ -131,7 +131,7 @@ for dataset in datas:
 
     print(f"\nRunning cross-val on {dataset}...")
     all_results = Parallel(
-        n_jobs=N_JOBS * 2,
+        n_jobs=N_JOBS,
         verbose=2,
         backend="multiprocessing",
     )(
@@ -159,7 +159,7 @@ for dataset in datas:
     plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
     plt.ylabel("Accuracy")
     plt.xlabel("No. of subjects stacked")
-    plt.savefig(os.path.join(results_dir, f"accuracy_{start_time}.png"))
+    plt.savefig(os.path.join(results_dir, f"accuracy.png"))
     plt.close()
 
     sns.boxplot(data=df, x="train_size", y="accuracy", hue="n_stacked")
