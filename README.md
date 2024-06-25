@@ -77,7 +77,7 @@ python scripts/feat_imp.py data results 20
 
 ## Time taken
 
-We ran the experiments on a CPU-based cluster with 72 nodes and 376 GB of RAM.
+We ran the experiments on a CPU-based cluster with 72 nodes and 376 GB of RAM, but only used 20 parallel jobs.
 
 The time taken for each experiment is as follows:
 
@@ -97,8 +97,21 @@ time python scripts/vary_train_size.py data results 20 voxels
 541518.33s user 20061.83s system 1715% cpu 9:05:44.40 total
 ```
 
+```bash
+# command
+time python scripts/vary_n_subs.py data results 20 difumo 
 
+# output
+264768.95s user 644.23s system 1804% cpu 4:05:10.79 total
+```
 
+```bash
+# command
+time python scripts/vary_n_subs.py data results 20 voxels 
+
+# output
+361548.14s user 5086.45s system 1828% cpu 5:34:16.29 total
+```
 
 ## Abstract
 
