@@ -27,6 +27,16 @@ conda env create -f env/main.yml
 conda activate ensemble_nogpu
 ```
 
+#### Optional dependencies
+
+Install the dependency for calculating the importance scores (as reported in Supplementary Fig. 2 in the paper).
+
+```bash
+git clone git@github.com:man-shu/Variable_Importance.git
+cd Variable_Importance/BBI_package
+pip install .
+```
+
 ### Run the experiments
 
 To generate numbers plotted in Fig 2 and Fig 3 (over varying training sizes) in the paper:
@@ -56,6 +66,14 @@ To generate numbers plotted in Fig 4 (over varying numbers of subjects in the en
     ```bash
     python scripts/vary_n_subs.py data results 20 voxels
     ```
+
+#### Optional experiment
+
+We can also compute the importance scores for the ensemble setting using the DiFuMo features and RandomForest classifier, plotted in Supplementary Fig. 2 in the paper:
+
+```bash
+python scripts/feat_imp.py data results 20
+```
 
 ## Time taken
 
