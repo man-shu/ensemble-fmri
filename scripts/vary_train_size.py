@@ -21,7 +21,7 @@ if len(sys.argv) != 5:
         "Please provide the following arguments in that order: ",
         "path to data, path to output, N parallel jobs, features.\n",
         "For example: ",
-        "python scripts/decode_vary_train_size.py data results 20 voxels\n",
+        "python scripts/vary_train_size.py data results 20 voxels\n",
     )
 
 else:
@@ -72,7 +72,6 @@ for dataset in datas:
         raise ValueError(f"Unknown feature set: {features}")
 
     # output results path
-    start_time = time.strftime("%Y%m%d-%H%M%S")
     results_dir = f"{dataset}_{features}"
     results_dir = os.path.join(OUT_ROOT, results_dir)
     os.makedirs(results_dir, exist_ok=True)
