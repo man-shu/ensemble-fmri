@@ -11,10 +11,9 @@ import os
 import seaborn as sns
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
-import time
 from glob import glob
-import importlib.util
 import sys
+import utils
 
 if len(sys.argv) != 5:
     raise ValueError(
@@ -29,15 +28,6 @@ else:
     OUT_ROOT = sys.argv[2]
     N_JOBS = sys.argv[3]
     features = sys.argv[4]
-
-# load local utility functions
-spec = importlib.util.spec_from_file_location(
-    "utils",
-    os.path.join("utils.py"),
-)
-utils = importlib.util.module_from_spec(spec)
-sys.modules["utils"] = utils
-spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
 datas = [

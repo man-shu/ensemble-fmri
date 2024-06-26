@@ -13,12 +13,11 @@ decoding object and then computes the importance scores.
 import numpy as np
 import os
 from joblib import Parallel, delayed
-import time
 from glob import glob
-import importlib.util
 import sys
 from tqdm import tqdm
 from nilearn import datasets
+import utils
 
 if len(sys.argv) != 5:
     raise ValueError(
@@ -31,15 +30,6 @@ else:
     DATA_ROOT = sys.argv[1]
     OUT_ROOT = sys.argv[2]
     N_JOBS = sys.argv[3]
-
-# load local utility functions
-spec = importlib.util.spec_from_file_location(
-    "utils",
-    os.path.join(OUT_ROOT, "utils.py"),
-)
-utils = importlib.util.module_from_spec(spec)
-sys.modules["utils"] = utils
-spec.loader.exec_module(utils)
 
 # datasets and classifiers to use
 datas = [
