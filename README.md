@@ -35,6 +35,7 @@ Install the dependency for calculating the importance scores (as reported in Sup
 git clone git@github.com:man-shu/Variable_Importance.git
 cd Variable_Importance/BBI_package
 pip install .
+cd ../..
 ```
 
 ### Run the experiments
@@ -77,7 +78,7 @@ python scripts/feat_imp.py data results 20
 
 ## Time taken
 
-We ran the experiments on a CPU-based cluster with 72 nodes and 376 GB of RAM, but only used 20 parallel jobs.
+We ran the experiments on a CPU-based cluster with 72 nodes and 376 GB of RAM, but only used 20 parallel jobs. The OS was Ubuntu 18.04.6 LTS.
 
 The time taken for each experiment is as follows:
 
