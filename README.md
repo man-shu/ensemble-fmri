@@ -114,6 +114,14 @@ time python scripts/vary_n_subs.py data results 20 voxels
 361548.14s user 5086.45s system 1828% cpu 5:34:16.29 total
 ```
 
+```bash
+# command
+python scripts/feat_imp.py data results 20  
+
+# output
+2596918.56s user 65902.53s system 2082% cpu 35:31:34.59 total
+```
+
 ## Abstract
 
 Decoding cognitive states from functional magnetic resonance imaging is central to understanding the functional organization of the brain. Within-subject decoding avoids between-subject correspondence problems but requires large sample sizes to make accurate predictions; obtaining such large sample sizes is both challenging and expensive. Here, we investigate an ensemble approach to decoding that combines the classifiers trained on data from other subjects to decode cognitive states in a new subject. We compare it with the conventional decoding approach on five different datasets and cognitive tasks. We find that it outperforms the conventional approach by up to 20\% in accuracy, especially for datasets with limited per-subject data. The ensemble approach is particularly advantageous when the classifier is trained in voxel space. Furthermore, a Multi-layer Perceptron turns out to be a good default choice as an ensemble method. These results show that the pre-training strategy reduces the need for large per-subject data.
