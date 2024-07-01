@@ -1,37 +1,40 @@
+"""
+This script performs decoding on varying training sizes using a Graph 
+Convolutional Neural Network (GCN) as implemented here: 
+https://main-educational.github.io/brain_encoding_decoding/gcn_decoding.html
+It does that for five different datasets: neuromod, forrest, 
+rsvp, bold and aomic_anticipation, using DiFuMo features.
+
+"""
+
 from glob import glob
 import os
 import numpy as np
-from nilearn import image
-from nilearn.interfaces.fmriprep import load_confounds
 from tqdm import tqdm
 import pandas as pd
 from joblib import Parallel, delayed, dump, load
-import nibabel as nib
-import ibc_public.utils_data
-import ibc_public
 import warnings
-from nilearn.datasets import fetch_atlas_difumo
-from nilearn.maskers import NiftiMapsMasker
 import matplotlib.pyplot as plt
-from gcn_windows_dataset import TimeWindowsDataset
 import torch
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from gcn_model import GCN
 import nilearn.connectome
-from graph_construction import make_group_graph
-import sys
 from sklearn.model_selection import (
-    ShuffleSplit,
     StratifiedShuffleSplit,
     train_test_split,
 )
-import time
 from nilearn import datasets
-from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from sklearn.metrics import balanced_accuracy_score
 import seaborn as sns
 import utils
 import itertools
+import sys
+import json
+
+# add utils to path
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from gcn.gcn_windows_dataset import TimeWindowsDataset
+from gcn.gcn_model import GCN
+from gcn.graph_construction import make_group_graph
 
 
 warnings.filterwarnings("ignore")
@@ -60,7 +63,8 @@ def train_loop(dataloader, model, loss_fn, optimizer, verbose=True):
         accuracies.append(correct)
         if verbose:
             print(
-                f"#{batch:>5};\ttrain_loss: {loss:>0.3f};\ttrain_accuracy:{(100*correct):>5.1f}%\t\t[{current:>5d}/{size:>5d}]"
+                f"#{batch:>5};\ttrain_loss: {loss:>0.3f};\ttrain_accuracy:",
+                f"{(100*correct):>5.1f}%\t\t[{current:>5d}/{size:>5d}]"
             )
 
     return np.mean(losses), np.mean(accuracies)
@@ -215,10 +219,6 @@ def load_data(
         shuffle=True,
     )
 
-    # print("train dataset: {}".format(train_dataset))
-    # print("valid dataset: {}".format(valid_dataset))
-    # print("test dataset: {}".format(test_dataset))
-
     torch.manual_seed(random_state)
     train_generator = DataLoader(
         train_dataset, batch_size=batch_size, shuffle=True
@@ -230,12 +230,6 @@ def load_data(
         test_dataset, batch_size=batch_size, shuffle=True
     )
     train_features, train_labels = next(iter(train_generator))
-    # print(
-    #     f"Feature batch shape: {train_features.size()}; mean {torch.mean(train_features)}"
-    # )
-    # print(
-    #     f"Labels batch shape: {train_labels.size()}; mean {torch.mean(torch.Tensor.float(train_labels))}"
-    # )
 
     return train_generator, valid_generator, test_generator
 
@@ -270,7 +264,8 @@ def batch_training(
         valid_accuracies.append(valid_accuracy)
         if verbose:
             print(
-                f"Valid metrics:\n\t avg_loss: {valid_loss:>8f};\t avg_accuracy: {(100*valid_accuracy):>0.1f}%"
+                f"Valid metrics:\n\t avg_loss: {valid_loss:>8f};\t ",
+                f"avg_accuracy: {(100*valid_accuracy):>0.1f}%"
             )
 
     return train_losses, train_accuracies, valid_losses, valid_accuracies
@@ -306,7 +301,8 @@ def param_sweep(
     if os.path.exists(best_params_file):
         best_params = load(best_params_file)
         print(
-            f"\nBest params for {dataset} {subject} already found: {best_params}"
+            f"\nBest params for {dataset} {subject} already found:",
+            f" {best_params}"
         )
         return best_params
     # compute best params if not found
@@ -342,7 +338,8 @@ def param_sweep(
     combi_acc = []
     for combination in param_combinations:
         print(
-            f"\nTesting params for {dataset} {subject} {leave_out}:\n{combination}"
+            f"\nTesting params for {dataset} {subject} {leave_out}:",
+            f"\n{combination}"
         )
         combination["accuracy"] = []
         for train, test, leave_out in _create_train_test_split(
@@ -423,7 +420,8 @@ def param_sweep(
     )
     dump(best_params, best_params_file)
     print(
-        f"\nSelected for {dataset} {subject} {leave_out}: {best_params} at accuracy {best_val_acc}"
+        f"\nSelected for {dataset} {subject} {leave_out}: {best_params} at",
+        f" accuracy {best_val_acc}"
     )
     return best_params
 
@@ -453,7 +451,6 @@ def decode(
     connectomes_ = list(connectomes_.values())
     connectomes_ = np.array(connectomes_)
     connectomes_ = np.mean(connectomes_, axis=0)
-    # print("Connectome shape: ", connectomes_.shape)
     # make a graph for the mean of connectomes
     graph = make_group_graph(
         [connectomes_], self_loops=False, k=8, symmetric=True
@@ -513,7 +510,6 @@ def decode(
             n_timepoints=1,
             n_classes=len(main_conditions),
         )
-        # print(gcn)
         # loss and optimizer
         loss_fn = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(
@@ -536,7 +532,8 @@ def decode(
             test_generator, gcn, loss_fn
         )
         print(
-            f"\n{dataset} {subject} {left_out}: {(100*balanced_accuracy):>0.1f}%"
+            f"\n{dataset} {subject} {left_out}: ",
+            f"{(100*balanced_accuracy):>0.1f}%"
         )
         # store results
         results.append(
@@ -575,36 +572,52 @@ def decode(
     )
     return results
 
+def json_to_dict(filename):
+    """Read a json file
+
+    Parameters
+    ----------
+    filename : str
+        path to json file
+
+    Returns
+    -------
+    dict
+        dictionary with hyperparameters to sweep
+    """
+    with open(filename) as f_in:
+        return json.load(f_in)
+
 
 if __name__ == "__main__":
 
-    N_JOBS = 5
-    DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023/data/"
-    OUT_ROOT = "/storage/store2/work/haggarwa/retreat_2023/gcn/results/"
+    if len(sys.argv) != 5:
+        raise ValueError(
+            "Please provide the following arguments in that order: ",
+            "path to data, path to output, N parallel jobs, path to json ",
+            "file with parameters to sweep.\nFor example: ",
+            "python scripts/vary_n_subs.py data ",
+            "results 20 gcn/param_grid.json\n"
+        )
+    else:
+        DATA_ROOT = sys.argv[1]
+        OUT_ROOT = sys.argv[2]
+        N_JOBS = sys.argv[3]
+        PARAMS = sys.argv[4]
+
+    # load parameter grid to sweep
+    param_file = PARAMS
+    param_grid = json_to_dict(param_file)
+
     # datasets and classifiers to use
     datas = [
-        # "bold5000_fold2",
-        # "bold5000_fold3",
-        # "bold5000_fold4",
         "neuromod",
-        # "aomic_gstroop",
-        # "forrest",
-        # "rsvp",
-        # "aomic_anticipation",
-        # "bold5000_fold1",
-        # "aomic_faces",
-        # "hcp_gambling",
-        # "bold",
-        # "nsd",
-        # "ibc_aomic_gstroop",
-        # "ibc_hcp_gambling",
+        "forrest",
+        "rsvp",
+        "bold",
+        "aomic_anticipation",
     ]
-    param_grid = {
-        "batch_size": [8],
-        "epochs": [25, 50],
-        "lr": [1e-3, 1e-2],
-        "weight_decay": [5e-4],
-    }
+    
     for dataset in datas:
         # input data root path
         data_dir = os.path.join(DATA_ROOT, dataset)
@@ -619,8 +632,7 @@ if __name__ == "__main__":
         )
         atlas["name"] = "difumo"
         # output results path
-        start_time = time.strftime("%Y%m%d-%H%M%S")
-        results_dir = f"{dataset}_{atlas.name}_results_{start_time}"
+        results_dir = f"{dataset}_{atlas["name"]}"
         results_dir = os.path.join(OUT_ROOT, results_dir)
         os.makedirs(results_dir, exist_ok=True)
         # get file names
@@ -651,7 +663,7 @@ if __name__ == "__main__":
         # calculate connectomes
         print(f"Calculating connectomes for {dataset}...")
         connectomes = Parallel(
-            n_jobs=N_JOBS * 3, verbose=11, backend="multiprocessing"
+            n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
         )(
             delayed(calculate_connectome)(
                 data, subject, os.path.join(data_dir, "connectomes")
@@ -664,7 +676,7 @@ if __name__ == "__main__":
         # decode
         print(f"Decoding {dataset}...")
         all_results = Parallel(
-            n_jobs=N_JOBS * 3, verbose=11, backend="multiprocessing"
+            n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
         )(
             delayed(decode)(
                 data,
@@ -679,20 +691,6 @@ if __name__ == "__main__":
             )
             for subject in subjects
         )
-
-        ## serial loop
-        # all_results = []
-        # for subject in subjects:
-        #     print(f"Decoding {subject}...")
-        #     sub_res = decode(
-        #         data,
-        #         connectomes,
-        #         subject,
-        #         results_dir,
-        #         classifier="GNN",
-        #         random_state=0,
-        #     )
-        #     all_results.append(sub_res)
 
         print(f"Results saved in {results_dir}")
         # plot results

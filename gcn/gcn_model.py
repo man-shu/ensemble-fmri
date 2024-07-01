@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric as tg
-import numpy as np
 
 
 class GCN(torch.nn.Module):
