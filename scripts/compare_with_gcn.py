@@ -25,7 +25,6 @@ from sklearn.model_selection import (
 from nilearn import datasets
 from sklearn.metrics import balanced_accuracy_score
 import seaborn as sns
-import utils
 import itertools
 import sys
 import json
@@ -35,6 +34,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from gcn.gcn_windows_dataset import TimeWindowsDataset
 from gcn.gcn_model import GCN
 from gcn.graph_construction import make_group_graph
+from utils import parcellate
 
 
 warnings.filterwarnings("ignore")
@@ -64,7 +64,7 @@ def train_loop(dataloader, model, loss_fn, optimizer, verbose=True):
         if verbose:
             print(
                 f"#{batch:>5};\ttrain_loss: {loss:>0.3f};\ttrain_accuracy:",
-                f"{(100*correct):>5.1f}%\t\t[{current:>5d}/{size:>5d}]"
+                f"{(100*correct):>5.1f}%\t\t[{current:>5d}/{size:>5d}]",
             )
 
     return np.mean(losses), np.mean(accuracies)
@@ -265,7 +265,7 @@ def batch_training(
         if verbose:
             print(
                 f"Valid metrics:\n\t avg_loss: {valid_loss:>8f};\t ",
-                f"avg_accuracy: {(100*valid_accuracy):>0.1f}%"
+                f"avg_accuracy: {(100*valid_accuracy):>0.1f}%",
             )
 
     return train_losses, train_accuracies, valid_losses, valid_accuracies
@@ -302,7 +302,7 @@ def param_sweep(
         best_params = load(best_params_file)
         print(
             f"\nBest params for {dataset} {subject} already found:",
-            f" {best_params}"
+            f" {best_params}",
         )
         return best_params
     # compute best params if not found
@@ -339,7 +339,7 @@ def param_sweep(
     for combination in param_combinations:
         print(
             f"\nTesting params for {dataset} {subject} {leave_out}:",
-            f"\n{combination}"
+            f"\n{combination}",
         )
         combination["accuracy"] = []
         for train, test, leave_out in _create_train_test_split(
@@ -419,10 +419,10 @@ def param_sweep(
         )
     )
     dump(best_params, best_params_file)
-    print(
-        f"\nSelected for {dataset} {subject} {leave_out}: {best_params} at",
-        f" accuracy {best_val_acc}"
-    )
+    # print(
+    #     f"\nSelected for {dataset} {subject} {leave_out}: {best_params} at",
+    #     f" accuracy {best_val_acc}",
+    # )
     return best_params
 
 
@@ -533,7 +533,7 @@ def decode(
         )
         print(
             f"\n{dataset} {subject} {left_out}: ",
-            f"{(100*balanced_accuracy):>0.1f}%"
+            f"{(100*balanced_accuracy):>0.1f}%",
         )
         # store results
         results.append(
@@ -572,6 +572,7 @@ def decode(
     )
     return results
 
+
 def json_to_dict(filename):
     """Read a json file
 
@@ -596,8 +597,8 @@ if __name__ == "__main__":
             "Please provide the following arguments in that order: ",
             "path to data, path to output, N parallel jobs, path to json ",
             "file with parameters to sweep.\nFor example: ",
-            "python scripts/vary_n_subs.py data ",
-            "results 20 gcn/param_grid.json\n"
+            "python scripts/compare_with_gcn.py data ",
+            "results 20 gcn/param_grid.json\n",
         )
     else:
         DATA_ROOT = sys.argv[1]
@@ -617,7 +618,7 @@ if __name__ == "__main__":
         "bold",
         "aomic_anticipation",
     ]
-    
+
     for dataset in datas:
         # input data root path
         data_dir = os.path.join(DATA_ROOT, dataset)
@@ -641,7 +642,7 @@ if __name__ == "__main__":
         # extract time series
         print(f"\nParcellating {dataset}...")
         data = Parallel(n_jobs=N_JOBS, verbose=11, backend="multiprocessing")(
-            delayed(utils.parcellate)(
+            delayed(parcellate)(
                 imgs[i],
                 subject,
                 atlas,
