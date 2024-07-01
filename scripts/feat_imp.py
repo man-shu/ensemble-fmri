@@ -17,9 +17,17 @@ from glob import glob
 import sys
 from tqdm import tqdm
 from nilearn import datasets
-import utils
 
-if len(sys.argv) != 5:
+# add utils to path
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utils import (
+    parcellate,
+    pretrain,
+    generate_sub_clf_combinations,
+    feature_importance,
+)
+
+if len(sys.argv) != 4:
     raise ValueError(
         "Please provide the following arguments in that order: ",
         "path to data, path to output, N parallel jobs.\n",
@@ -66,7 +74,7 @@ for dataset in datas:
 
     print(f"\nParcellating {dataset}...")
     data = Parallel(n_jobs=N_JOBS, verbose=11, backend="multiprocessing")(
-        delayed(utils.parcellate)(
+        delayed(parcellate)(
             imgs[i],
             subject,
             atlas,
@@ -90,7 +98,7 @@ for dataset in datas:
     dummy_fitted_classifiers = Parallel(
         n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
-        delayed(utils.pretrain)(
+        delayed(pretrain)(
             subject=subject,
             data=data,
             dummy=True,
@@ -104,7 +112,7 @@ for dataset in datas:
     fitted_classifiers = Parallel(
         n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
-        delayed(utils.pretrain)(
+        delayed(pretrain)(
             subject=subject,
             data=data,
             dummy=False,
@@ -116,12 +124,12 @@ for dataset in datas:
 
     all_results = []
     for subject, subject_i, clf in tqdm(
-        utils.generate_sub_clf_combinations(subjects, classifiers),
+        generate_sub_clf_combinations(subjects, classifiers),
         total=len(subjects) * len(classifiers),
         desc=f"Running {dataset}",
     ):
         print(subject, subject_i)
-        result = utils.feature_importance(
+        result = feature_importance(
             subject,
             subject_i,
             data,

@@ -1,4 +1,5 @@
-"""This script performs decoding on varying training sizes in two settings:
+"""
+This script performs decoding on varying training sizes in two settings:
 conventional and ensemble, for five different datasets: neuromod, forrest, 
 rsvp, bold and aomic_anticipation, using either DiFuMo or full-voxel features.
 
@@ -13,7 +14,15 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from glob import glob
 import sys
-import utils
+
+# add utils to path
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utils import (
+    parcellate,
+    pretrain,
+    generate_sub_clf_combinations,
+    decode,
+)
 
 if len(sys.argv) != 5:
     raise ValueError(
@@ -72,7 +81,7 @@ for dataset in datas:
 
     print(f"\nParcellating {dataset}...")
     data = Parallel(n_jobs=N_JOBS, verbose=11, backend="multiprocessing")(
-        delayed(utils.parcellate)(
+        delayed(parcellate)(
             imgs[i],
             subject,
             atlas,
@@ -96,7 +105,7 @@ for dataset in datas:
     dummy_fitted_classifiers = Parallel(
         n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
-        delayed(utils.pretrain)(
+        delayed(pretrain)(
             subject=subject,
             data=data,
             dummy=True,
@@ -110,7 +119,7 @@ for dataset in datas:
     fitted_classifiers = Parallel(
         n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
-        delayed(utils.pretrain)(
+        delayed(pretrain)(
             subject=subject,
             data=data,
             dummy=False,
@@ -126,7 +135,7 @@ for dataset in datas:
         verbose=2,
         backend="multiprocessing",
     )(
-        delayed(utils.decode)(
+        delayed(decode)(
             subject,
             subject_i,
             data,
@@ -136,7 +145,7 @@ for dataset in datas:
             results_dir,
             dataset,
         )
-        for subject, subject_i, clf in utils.generate_sub_clf_combinations(
+        for subject, subject_i, clf in generate_sub_clf_combinations(
             subjects, classifiers
         )
     )
@@ -150,7 +159,7 @@ for dataset in datas:
     plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
     plt.ylabel("Accuracy")
     plt.xlabel("Training size")
-    plt.savefig(os.path.join(results_dir, f"accuracy_{start_time}.png"))
+    plt.savefig(os.path.join(results_dir, f"accuracy.png"))
     plt.close()
 
     sns.boxplot(
@@ -159,7 +168,7 @@ for dataset in datas:
     plt.axhline(y=df["dummy_accuracy"].mean(), color="k", linestyle="--")
     plt.ylabel("Accuracy")
     plt.xlabel("Training size")
-    plt.savefig(os.path.join(results_dir, f"box_accuracy_{start_time}.png"))
+    plt.savefig(os.path.join(results_dir, f"box_accuracy.png"))
     plt.close()
 
     sns.pointplot(
@@ -173,9 +182,7 @@ for dataset in datas:
     )
     plt.ylabel("Balanced Accuracy")
     plt.xlabel("Training size")
-    plt.savefig(
-        os.path.join(results_dir, f"balanced_accuracy_{start_time}.png")
-    )
+    plt.savefig(os.path.join(results_dir, f"balanced_accuracy.png"))
     plt.close()
 
     sns.pointplot(
@@ -189,9 +196,7 @@ for dataset in datas:
     )
     plt.ylabel("Balanced Accuracy")
     plt.xlabel("Training size")
-    plt.savefig(
-        os.path.join(results_dir, f"balanced_accuracy_{start_time}.png")
-    )
+    plt.savefig(os.path.join(results_dir, f"balanced_accuracy.png"))
     plt.close()
 
     sns.boxplot(
@@ -205,7 +210,5 @@ for dataset in datas:
     )
     plt.ylabel("Balanced Accuracy")
     plt.xlabel("Training size")
-    plt.savefig(
-        os.path.join(results_dir, f"box_balanced_accuracy_{start_time}.png")
-    )
+    plt.savefig(os.path.join(results_dir, f"box_balanced_accuracy.png"))
     plt.close()

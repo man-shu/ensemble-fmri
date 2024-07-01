@@ -1,4 +1,5 @@
-"""This script performs decoding on varying training sizes and varying number
+"""
+This script performs decoding on varying training sizes and varying number
 subjects in the ensemble, for five different datasets: neuromod, forrest, rsvp, 
 bold and aomic_anticipation, using either DiFuMo or full-voxel features.
 
@@ -13,7 +14,15 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from glob import glob
 import sys
-import utils
+
+# add utils to path
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+from utils import (
+    parcellate,
+    pretrain,
+    generate_sub_clf_combinations,
+    vary_stacked_subs,
+)
 
 if len(sys.argv) != 5:
     raise ValueError(
@@ -71,7 +80,7 @@ for dataset in datas:
 
     print(f"\nParcellating {dataset}...")
     data = Parallel(n_jobs=N_JOBS, verbose=11, backend="multiprocessing")(
-        delayed(utils.parcellate)(
+        delayed(parcellate)(
             imgs[i],
             subject,
             atlas,
@@ -95,7 +104,7 @@ for dataset in datas:
     dummy_fitted_classifiers = Parallel(
         n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
-        delayed(utils.pretrain)(
+        delayed(pretrain)(
             subject=subject,
             data=data,
             dummy=True,
@@ -109,7 +118,7 @@ for dataset in datas:
     fitted_classifiers = Parallel(
         n_jobs=N_JOBS, verbose=11, backend="multiprocessing"
     )(
-        delayed(utils.pretrain)(
+        delayed(pretrain)(
             subject=subject,
             data=data,
             dummy=False,
@@ -125,7 +134,7 @@ for dataset in datas:
         verbose=2,
         backend="multiprocessing",
     )(
-        delayed(utils.vary_stacked_subs)(
+        delayed(vary_stacked_subs)(
             subject,
             subject_i,
             data,
@@ -135,7 +144,7 @@ for dataset in datas:
             results_dir,
             dataset,
         )
-        for subject, subject_i, clf in utils.generate_sub_clf_combinations(
+        for subject, subject_i, clf in generate_sub_clf_combinations(
             subjects, classifiers
         )
     )
