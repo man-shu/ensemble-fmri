@@ -31,7 +31,7 @@ conda activate ensemble_nogpu
 
 ##### For calculating feature importance scores
 
-We used a conditional permutation importance method to calculate the importance scores as provided here: https://github.com/achamma723/Variable_Importance and explained here: https://papers.nips.cc/paper_files/paper/2023/hash/d60e14c19cd6e0fc38556ad29ac8fbc9-Abstract-Conference.html. I have modified the code to work with the ensemble setting. To install the package, run:
+We used a conditional permutation importance method to calculate the importance scores as provided in [this package](https://github.com/achamma723/Variable_Importance) and explained in [this paper](https://papers.nips.cc/paper_files/paper/2023/hash/d60e14c19cd6e0fc38556ad29ac8fbc9-Abstract-Conference.html). I have modified the code to work with the ensemble setting. To install the package, run:
 
 ```bash
 git clone git@github.com:man-shu/Variable_Importance.git
