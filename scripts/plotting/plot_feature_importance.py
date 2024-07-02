@@ -103,30 +103,12 @@ if __name__ == "__main__":
     N_JOBS = 5
 
     data_dir = os.path.join(DATA_ROOT, "data", "feat_imp")
-    results_root = os.path.join(DATA_ROOT, "results_l2_penalty_in_pretraining")
-    out_dir = os.path.join(DATA_ROOT, "plots_l2_penalty_in_pretraining")
+    results_root = os.path.join(DATA_ROOT, "results_l2")
+    out_dir = os.path.join(DATA_ROOT, "plots_l2", "thresholded_featimp")
     os.makedirs(out_dir, exist_ok=True)
 
-    atlas = datasets.fetch_atlas_difumo(
-        dimension=1024,
-        resolution_mm=3,
-        data_dir=DATA_ROOT,
-        legacy_format=False,
-    )
-    atlas["name"] = "difumo"
-
-    mask = datasets.load_mni152_gm_mask(resolution=3)
-
-    masker = maskers.NiftiMapsMasker(
-        maps_img=atlas["maps"],
-        # mask_img=mask,
-        verbose=11,
-        n_jobs=20,
-        memory="difumo_to_voxels_cache",
-    ).fit()
-
     # datasets
-    datasets = [
+    datas = [
         "neuromod",
         "aomic_anticipation",
         "forrest",
@@ -154,7 +136,7 @@ if __name__ == "__main__":
 
     settings = ["conventional", "ensemble"]
 
-    for dataset_i, dataset in enumerate(datasets):
+    for dataset_i, dataset in enumerate(datas):
         for feature in features:
             for classifier in classifiers:
                 subs = get_subs(dataset, feature, classifier)
@@ -167,83 +149,94 @@ if __name__ == "__main__":
                     if os.path.exists(z_map_path):
                         z_map = image.load_img(z_map_path)
                     else:
-                        masker = maskers.NiftiMapsMasker(
-                            maps_img=atlas["maps"],
-                            # mask_img=mask,
-                            verbose=11,
-                            n_jobs=20,
-                            memory="difumo_to_voxels_cache",
-                        ).fit()
-                        voxel_importance = {"imgs": []}
-                        sub_df = load_sub(
-                            dataset, feature, classifier, sub, results_root
-                        )
-                        importances = [
-                            sub_df["all_scores_fold1"],
-                            sub_df["all_scores_fold2"],
-                        ]
+                        continue
+                        # atlas = datasets.fetch_atlas_difumo(
+                        #     dimension=1024,
+                        #     resolution_mm=3,
+                        #     data_dir=DATA_ROOT,
+                        #     legacy_format=False,
+                        # )
+                        # atlas["name"] = "difumo"
 
-                        for i, imp in enumerate(importances):
-                            n_samples = imp.shape[1]
+                        # mask = datasets.load_mni152_gm_mask(resolution=3)
 
-                            voxel_imp = Parallel(
-                                n_jobs=N_JOBS,
-                                verbose=11,
-                            )(
-                                delayed(importance_on_voxels)(
-                                    imp, sample_i, masker
-                                )
-                                for sample_i in range(n_samples)
-                            )
-                            voxel_importance["imgs"].append(
-                                image.concat_imgs(voxel_imp)
-                            )
+                        # masker = maskers.NiftiMapsMasker(
+                        #     maps_img=atlas["maps"],
+                        #     # mask_img=mask,
+                        #     verbose=11,
+                        #     n_jobs=20,
+                        #     memory="difumo_to_voxels_cache",
+                        # ).fit()
+                        # voxel_importance = {"imgs": []}
+                        # sub_df = load_sub(
+                        #     dataset, feature, classifier, sub, results_root
+                        # )
+                        # importances = [
+                        #     sub_df["all_scores_fold1"],
+                        #     sub_df["all_scores_fold2"],
+                        # ]
 
-                        voxel_imp_arrays = []
-                        for i, voxel_imp in enumerate(
-                            voxel_importance["imgs"]
-                        ):
-                            voxel_imp.to_filename(
-                                os.path.join(
-                                    data_dir,
-                                    f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_fold{i+1}.nii.gz",
-                                )
-                            )
-                            voxel_imp_arrays.append(voxel_imp.get_fdata())
+                        # for i, imp in enumerate(importances):
+                        #     n_samples = imp.shape[1]
 
-                        mean, std = compute_imp_std(voxel_imp_arrays)
-                        z_map = mean / std
-                        np.seterr(divide="ignore", invalid="ignore")
-                        z_map = image.new_img_like(
-                            voxel_importance["imgs"][0], z_map
-                        )
-                        z_map.to_filename(
-                            os.path.join(
-                                data_dir,
-                                f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.nii.gz",
-                            )
-                        )
-                    plotting.plot_img_on_surf(
-                        z_map,
-                        title=f"{fixed_datasets[dataset]}",
-                        fsaverage="fsaverage",
-                        views=["lateral"],
-                    )
-                    plt.savefig(
-                        os.path.join(
-                            out_dir,
-                            f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.png",
-                        ),
-                        bbox_inches="tight",
-                    )
-                    plt.savefig(
-                        os.path.join(
-                            out_dir,
-                            f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.svg",
-                        ),
-                        bbox_inches="tight",
-                    )
-                    plt.close()
+                        #     voxel_imp = Parallel(
+                        #         n_jobs=N_JOBS,
+                        #         verbose=11,
+                        #     )(
+                        #         delayed(importance_on_voxels)(
+                        #             imp, sample_i, masker
+                        #         )
+                        #         for sample_i in range(n_samples)
+                        #     )
+                        #     voxel_importance["imgs"].append(
+                        #         image.concat_imgs(voxel_imp)
+                        #     )
+
+                        # voxel_imp_arrays = []
+                        # for i, voxel_imp in enumerate(
+                        #     voxel_importance["imgs"]
+                        # ):
+                        #     voxel_imp.to_filename(
+                        #         os.path.join(
+                        #             data_dir,
+                        #             f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_fold{i+1}.nii.gz",
+                        #         )
+                        #     )
+                        #     voxel_imp_arrays.append(voxel_imp.get_fdata())
+
+                        # mean, std = compute_imp_std(voxel_imp_arrays)
+                        # z_map = mean / std
+                        # np.seterr(divide="ignore", invalid="ignore")
+                        # z_map = image.new_img_like(
+                        #     voxel_importance["imgs"][0], z_map
+                        # )
+                        # z_map.to_filename(
+                        #     os.path.join(
+                        #         data_dir,
+                        #         f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.nii.gz",
+                        #     )
+                        # )
+                    # plotting.plot_img_on_surf(
+                    #     z_map,
+                    #     title=f"{fixed_datasets[dataset]}",
+                    #     fsaverage="fsaverage",
+                    #     views=["lateral"],
+                    # )
+                    # plt.savefig(
+                    #     os.path.join(
+                    #         out_dir,
+                    #         f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.png",
+                    #     ),
+                    #     bbox_inches="tight",
+                    # )
+                    # plt.savefig(
+                    #     os.path.join(
+                    #         out_dir,
+                    #         f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.svg",
+                    #     ),
+                    #     bbox_inches="tight",
+                    # )
+                    # plt.close()
 
                     plotting.plot_glass_brain(
                         z_map,
@@ -251,6 +244,9 @@ if __name__ == "__main__":
                         plot_abs=False,
                         cmap="coolwarm",
                         colorbar=True,
+                        threshold=2.054,
+                        symmetric_cbar=False,
+                        vmin=0,
                     )
                     plt.savefig(
                         os.path.join(
