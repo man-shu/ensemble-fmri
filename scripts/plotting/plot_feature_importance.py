@@ -1,23 +1,20 @@
-import pandas as pd
+"""
+This script projects the feature importance maps from DiFuMo back to the voxel 
+space and plots them on the surface and glass brain.
+
+"""
+
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MultipleLocator
 from glob import glob
 import numpy as np
-from tqdm import tqdm
-from sklearn.utils import Bunch
-import pdb
-from scipy.optimize import curve_fit
 from nilearn import maskers, datasets, plotting
-from sklearn.preprocessing import StandardScaler
-from scipy.stats import t
 from nilearn import image
 from joblib import load, Parallel, delayed
-from sklearn.base import clone
 
 sns.set_context("talk", font_scale=1.2)
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
+DATA_ROOT = "."
 
 
 def fix_names(df):
@@ -41,9 +38,7 @@ def fix_names(df):
 
 
 def get_subs(dataset, feature, classifier):
-    featimp_dir = os.path.join(
-        results_root, f"{dataset}_{feature}_featimp_all_samples"
-    )
+    featimp_dir = os.path.join(results_root, f"{dataset}_{feature}_featimp")
     pkls = glob(os.path.join(featimp_dir, f"*{classifier}*.pkl"))
     subs = [os.path.basename(pkl).split("_")[-1].split(".")[0] for pkl in pkls]
 
@@ -57,9 +52,7 @@ def load_sub(
     subject,
     results_root,
 ):
-    featimp_dir = os.path.join(
-        results_root, f"{dataset}_{feature}_featimp_all_samples"
-    )
+    featimp_dir = os.path.join(results_root, f"{dataset}_{feature}_featimp")
     pkl = glob(os.path.join(featimp_dir, f"*{classifier}*{subject}.pkl"))[0]
     print(pkl)
     sub_df = load(pkl)
@@ -103,8 +96,8 @@ if __name__ == "__main__":
     N_JOBS = 5
 
     data_dir = os.path.join(DATA_ROOT, "data", "feat_imp")
-    results_root = os.path.join(DATA_ROOT, "results_l2")
-    out_dir = os.path.join(DATA_ROOT, "plots_l2", "thresholded_featimp")
+    results_root = os.path.join(DATA_ROOT, "results")
+    out_dir = os.path.join(DATA_ROOT, "plots_copy", "thresholded_featimp")
     os.makedirs(out_dir, exist_ok=True)
 
     # datasets
@@ -112,9 +105,7 @@ if __name__ == "__main__":
         "neuromod",
         "aomic_anticipation",
         "forrest",
-        # "bold5000",
         "rsvp",
-        # "nsd",
     ]
 
     # Camelized dataset names
@@ -126,12 +117,10 @@ if __name__ == "__main__":
         # "nsd": "NSD",
         "aomic_anticipation": "AOMIC",
     }
-    n_samples = [50, 61, 175, 332, 360]
-    n_subs = [4, 203, 10, 3, 13]
+    n_samples = [50, 61, 175, 360]
+    n_subs = [4, 203, 10, 13]
 
-    # features = ["voxels", "difumo"]
     features = ["difumo"]
-    # classifiers = ["MLP", "LinearSVC", "RandomForest"]
     classifiers = ["RandomForest"]
 
     settings = ["conventional", "ensemble"]
@@ -149,73 +138,72 @@ if __name__ == "__main__":
                     if os.path.exists(z_map_path):
                         z_map = image.load_img(z_map_path)
                     else:
-                        continue
-                        # atlas = datasets.fetch_atlas_difumo(
-                        #     dimension=1024,
-                        #     resolution_mm=3,
-                        #     data_dir=DATA_ROOT,
-                        #     legacy_format=False,
-                        # )
-                        # atlas["name"] = "difumo"
+                        atlas = datasets.fetch_atlas_difumo(
+                            dimension=1024,
+                            resolution_mm=3,
+                            data_dir=DATA_ROOT,
+                            legacy_format=False,
+                        )
+                        atlas["name"] = "difumo"
 
-                        # mask = datasets.load_mni152_gm_mask(resolution=3)
+                        mask = datasets.load_mni152_gm_mask(resolution=3)
 
-                        # masker = maskers.NiftiMapsMasker(
-                        #     maps_img=atlas["maps"],
-                        #     # mask_img=mask,
-                        #     verbose=11,
-                        #     n_jobs=20,
-                        #     memory="difumo_to_voxels_cache",
-                        # ).fit()
-                        # voxel_importance = {"imgs": []}
-                        # sub_df = load_sub(
-                        #     dataset, feature, classifier, sub, results_root
-                        # )
-                        # importances = [
-                        #     sub_df["all_scores_fold1"],
-                        #     sub_df["all_scores_fold2"],
-                        # ]
+                        masker = maskers.NiftiMapsMasker(
+                            maps_img=atlas["maps"],
+                            # mask_img=mask,
+                            verbose=11,
+                            n_jobs=20,
+                            memory="difumo_to_voxels_cache",
+                        ).fit()
+                        voxel_importance = {"imgs": []}
+                        sub_df = load_sub(
+                            dataset, feature, classifier, sub, results_root
+                        )
+                        importances = [
+                            sub_df["all_scores_fold1"],
+                            sub_df["all_scores_fold2"],
+                        ]
 
-                        # for i, imp in enumerate(importances):
-                        #     n_samples = imp.shape[1]
+                        for i, imp in enumerate(importances):
+                            n_samples = imp.shape[1]
 
-                        #     voxel_imp = Parallel(
-                        #         n_jobs=N_JOBS,
-                        #         verbose=11,
-                        #     )(
-                        #         delayed(importance_on_voxels)(
-                        #             imp, sample_i, masker
-                        #         )
-                        #         for sample_i in range(n_samples)
-                        #     )
-                        #     voxel_importance["imgs"].append(
-                        #         image.concat_imgs(voxel_imp)
-                        #     )
+                            voxel_imp = Parallel(
+                                n_jobs=N_JOBS,
+                                verbose=11,
+                            )(
+                                delayed(importance_on_voxels)(
+                                    imp, sample_i, masker
+                                )
+                                for sample_i in range(n_samples)
+                            )
+                            voxel_importance["imgs"].append(
+                                image.concat_imgs(voxel_imp)
+                            )
 
-                        # voxel_imp_arrays = []
-                        # for i, voxel_imp in enumerate(
-                        #     voxel_importance["imgs"]
-                        # ):
-                        #     voxel_imp.to_filename(
-                        #         os.path.join(
-                        #             data_dir,
-                        #             f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_fold{i+1}.nii.gz",
-                        #         )
-                        #     )
-                        #     voxel_imp_arrays.append(voxel_imp.get_fdata())
+                        voxel_imp_arrays = []
+                        for i, voxel_imp in enumerate(
+                            voxel_importance["imgs"]
+                        ):
+                            voxel_imp.to_filename(
+                                os.path.join(
+                                    data_dir,
+                                    f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_fold{i+1}.nii.gz",
+                                )
+                            )
+                            voxel_imp_arrays.append(voxel_imp.get_fdata())
 
-                        # mean, std = compute_imp_std(voxel_imp_arrays)
-                        # z_map = mean / std
-                        # np.seterr(divide="ignore", invalid="ignore")
-                        # z_map = image.new_img_like(
-                        #     voxel_importance["imgs"][0], z_map
-                        # )
-                        # z_map.to_filename(
-                        #     os.path.join(
-                        #         data_dir,
-                        #         f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.nii.gz",
-                        #     )
-                        # )
+                        mean, std = compute_imp_std(voxel_imp_arrays)
+                        z_map = mean / std
+                        np.seterr(divide="ignore", invalid="ignore")
+                        z_map = image.new_img_like(
+                            voxel_importance["imgs"][0], z_map
+                        )
+                        z_map.to_filename(
+                            os.path.join(
+                                data_dir,
+                                f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.nii.gz",
+                            )
+                        )
                     # plotting.plot_img_on_surf(
                     #     z_map,
                     #     title=f"{fixed_datasets[dataset]}",
