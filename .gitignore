@@ -10,3 +10,4 @@ zenodo
 Variable_Importance
 *.svg
 plots/feat_imp/*
+plots/gcn/*
