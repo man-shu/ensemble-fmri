@@ -1,3 +1,9 @@
+"""
+This script plots fig4 from the paper. 
+It contains the gain in accuracy of the ensemble over the conventional
+setting vs. the number of subjects in the ensemble.
+"""
+
 import pandas as pd
 import os
 import seaborn as sns
@@ -6,29 +12,8 @@ from matplotlib.ticker import MultipleLocator
 from glob import glob
 import numpy as np
 from tqdm import tqdm
-from sklearn.utils import Bunch
-import pdb
-from scipy.optimize import curve_fit
 
 sns.set_context("talk", font_scale=1.2)
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
-
-
-# Define the logistic function
-def logistic(x, a, b, c):
-    return c / (1 + np.exp(-(x - b) / a))
-
-
-def get_logistic_fit(gain_df, classifier):
-    mask = gain_df["Classifier"] == classifier
-    x = gain_df.loc[mask, "n_stacked"].values
-    y = gain_df.loc[mask, "gain"].values
-    popt, pcov = curve_fit(logistic, x, y)
-    gain_df.loc[mask, "logistic_fit"] = logistic(
-        gain_df["n_stacked"].values, *popt
-    )
-
-    return gain_df
 
 
 def fix_names(df):
@@ -78,8 +63,6 @@ def calculate_gain(df, dataset, feature, classifier):
             true_labels_ensemble = np.concatenate(
                 df_[df_["Setting"] == "Ensemble"]["true"].to_list()
             )
-            if not np.array_equal(true_labels_conv, true_labels_ensemble):
-                pdb.set_trace()
             acc_conventional = acc_conventional[: len(acc_stacked)]
         gains = acc_stacked - acc_conventional
         gain["gain"].extend(gains)
@@ -100,7 +83,7 @@ def load_all_subs(
     dataset,
     feature,
     classifier,
-    results_root=os.path.join(DATA_ROOT, "results"),
+    results_root,
 ):
     max_sub_dir = os.path.join(results_root, f"{dataset}_{feature}")
     vary_sub_dir = os.path.join(results_root, f"{dataset}_{feature}_varysubs")
@@ -148,6 +131,8 @@ def load_all_subs(
 
 
 if __name__ == "__main__":
+    DATA_ROOT = "."
+
     results_root = os.path.join(DATA_ROOT, "results")
     out_dir = os.path.join(DATA_ROOT, "plots")
     os.makedirs(out_dir, exist_ok=True)
@@ -157,18 +142,16 @@ if __name__ == "__main__":
         "neuromod",
         "aomic_anticipation",
         "forrest",
-        "bold5000",
+        "bold",
         "rsvp",
-        # "nsd",
     ]
 
     # Camelized dataset names
     fixed_datasets = {
         "neuromod": "Neuromod",
         "forrest": "Forrest",
-        "bold5000": "BOLD5000",
+        "bold": "BOLD5000",
         "rsvp": "RSVP-IBC",
-        # "nsd": "NSD",
         "aomic_anticipation": "AOMIC",
     }
     n_samples = [50, 61, 175, 332, 360]
@@ -179,8 +162,9 @@ if __name__ == "__main__":
     for dataset_i, dataset in enumerate(datasets):
         for feature in ["voxels", "difumo"]:
             for classifier in ["MLP", "LinearSVC", "RandomForest"]:
-                df, gain_df = load_all_subs(dataset, feature, classifier)
-                gain_df = get_logistic_fit(gain_df, classifier)
+                df, gain_df = load_all_subs(
+                    dataset, feature, classifier, results_root
+                )
                 dfs.append(df)
                 gain_dfs.append(gain_df)
     df = pd.concat(dfs)
@@ -198,38 +182,6 @@ if __name__ == "__main__":
     )
     gain_df["gain"] = gain_df["gain"] * 100
     gain_df["logistic_fit"] = gain_df["logistic_fit"] * 100
-    # sns.relplot(
-    #     data=df,
-    #     x="n_samples_per_class",
-    #     y="balanced_accuracy",
-    #     col="n_stacked",
-    #     hue="setting",
-    #     style="classifier",
-    #     palette=["b", "r"],
-    #     kind="line",
-    # )
-    # plt.savefig(
-    #     os.path.join(out_dir, f"varysubs_vs_accuracy_{feature}.png")
-    # )
-    # plt.savefig(
-    #     os.path.join(out_dir, f"varysubs_vs_accuracy_{feature}.svg")
-    # )
-    # plt.close()
-
-    # fig = sns.lmplot(
-    #     data=gain_df,
-    #     x="n_stacked",
-    #     y="gain",
-    #     col="dataset",
-    #     hue="Classifier",
-    #     logistic=True,
-    #     x_estimator=np.mean,
-    #     aspect=1.5,
-    #     facet_kws={
-    #         "sharey": False,
-    #         "sharex": False,
-    #     },
-    # )
     gain_df = fix_names(gain_df)
 
     colors = sns.color_palette("tab10")
@@ -287,11 +239,11 @@ if __name__ == "__main__":
         title=None,
     )
     plt.savefig(
-        os.path.join(out_dir, "varysubs_vs_gain.png"),
+        os.path.join(out_dir, "fig4.png"),
         bbox_inches="tight",
     )
     plt.savefig(
-        os.path.join(out_dir, "varysubs_vs_gain.svg"),
+        os.path.join(out_dir, "fig4.svg"),
         bbox_inches="tight",
     )
     plt.close()

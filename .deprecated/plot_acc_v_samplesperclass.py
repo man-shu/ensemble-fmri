@@ -49,8 +49,8 @@ fixed_methods = {
 plot_types = ["Classifier"]
 # plot_types = ["Feature", "Classifier"]
 
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
-out_dir = os.path.join(DATA_ROOT, "plots")
+DATA_ROOT = "."
+out_dir = os.path.join(DATA_ROOT, "plots_copy_old")
 os.makedirs(out_dir, exist_ok=True)
 
 ### Calculate average gains
@@ -74,7 +74,7 @@ for metric in metrics:
     ):
         for feature in features:
             results_dir = os.path.join(
-                DATA_ROOT, "results", f"{dataset}_{feature}"
+                DATA_ROOT, "results_l2", f"{dataset}_{feature}"
             )
             for classifier in classifiers:
                 pickles = glob(

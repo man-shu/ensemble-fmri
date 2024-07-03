@@ -1,7 +1,6 @@
 """
 This script projects the feature importance maps from DiFuMo back to the voxel 
 space and plots them on the surface and glass brain.
-
 """
 
 import os
@@ -14,7 +13,6 @@ from nilearn import image
 from joblib import load, Parallel, delayed
 
 sns.set_context("talk", font_scale=1.2)
-DATA_ROOT = "."
 
 
 def fix_names(df):
@@ -94,10 +92,10 @@ def compute_imp_std(pred_scores):
 
 if __name__ == "__main__":
     N_JOBS = 8
-
+    DATA_ROOT = "."
     data_dir = os.path.join(DATA_ROOT, "data", "feat_imp")
     results_root = os.path.join(DATA_ROOT, "results")
-    out_dir = os.path.join(DATA_ROOT, "plots_copy", "thresholded_featimp")
+    out_dir = os.path.join(DATA_ROOT, "plots", "feat_imp")
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
 

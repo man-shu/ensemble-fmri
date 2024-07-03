@@ -48,8 +48,8 @@ fixed_methods = {
 plot_types = ["Classifier"]
 # plot_types = ["Feature", "Classifier"]
 
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
-out_dir = os.path.join(DATA_ROOT, "plots_l2_penalty_in_pretraining")
+DATA_ROOT = "."
+out_dir = os.path.join(DATA_ROOT, "plots_copy")
 os.makedirs(out_dir, exist_ok=True)
 
 ### Calculate average gains
@@ -64,7 +64,7 @@ for metric in metrics:
         for feature in features:
             results_dir = os.path.join(
                 DATA_ROOT,
-                "results_l2_penalty_in_pretraining",
+                "results",
                 f"{dataset}_{feature}",
             )
             for classifier in classifiers:
@@ -128,10 +128,10 @@ for metric in metrics:
     df = df.reset_index(drop=True)
 
     datasets = [
-        # "neuromod",
+        "neuromod",
         "aomic_anticipation",
         "forrest",
-        "bold5000",
+        "bold",
         "rsvp",
     ]
 

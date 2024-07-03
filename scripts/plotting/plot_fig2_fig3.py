@@ -1,3 +1,14 @@
+"""
+This script plots:
+1. fig2: barplots of average accuracy for each dataset, feature, classifier, 
+and setting.
+2. fig3: lineplots of gain in accuracy of the ensemble over the conventional
+setting vs. number of samples per class for each dataset, feature, classifier,
+and setting.
+3. extra lineplots of accuracy vs. number of samples per class for each
+dataset, feature, classifier, and setting.
+"""
+
 import pandas as pd
 import os
 import seaborn as sns
@@ -6,35 +17,7 @@ from glob import glob
 import numpy as np
 from sklearn.utils import Bunch
 from tqdm import tqdm
-from scipy.optimize import curve_fit
-import pdb
-from seaborn._stats.base import Stat
-from seaborn._stats.aggregation import Est
 from matplotlib.ticker import MultipleLocator
-
-
-# Define the log function
-def log_func(x, a, b):
-    return a * np.log(x) + b
-
-
-def get_lm_fit(gain_df, classifier, plot_type):
-    mask = gain_df[plot_type] == classifier
-    gain_df.loc[mask, "lm_fit"] = np.nan
-    samples = gain_df["n_samples_per_class"].unique()
-    y = []
-    for sample in samples:
-        mask_sample = gain_df.loc[mask, "n_samples_per_class"] == sample
-        y_sample = np.mean(gain_df.loc[mask].loc[mask_sample, "gain"].values)
-        y.append(y_sample)
-    popt, pcov = curve_fit(log_func, samples, y)
-    y_fit = log_func(samples, *popt)
-    for i, sample in enumerate(samples):
-        for j, row in gain_df.iterrows():
-            if row["n_samples_per_class"] == sample:
-                row["lm_fit"] = y_fit[i]
-    pdb.set_trace()
-    return gain_df
 
 
 sns.set_context("talk", font_scale=1.2)
@@ -43,23 +26,19 @@ datasets = [
     "neuromod",
     "aomic_anticipation",
     "forrest",
-    "bold5000",
+    "bold",
     "rsvp",
-    # "nsd",
 ]
 # Camelized dataset names
 fixed_datasets = {
     "neuromod": "Neuromod",
     "forrest": "Forrest",
-    "bold5000": "BOLD5000",
+    "bold": "BOLD5000",
     "rsvp": "RSVP-IBC",
-    # "nsd": "NSD",
     "aomic_anticipation": "AOMIC",
 }
-# n_samples = [50, 175, 332, 360, 4848, 61]
 n_samples = [50, 61, 175, 332, 360]
 # performance metrics
-# metrics = ["accuracy", "balanced_accuracy"]
 metrics = ["balanced_accuracy"]
 # features
 features = ["voxels", "difumo"]
@@ -77,10 +56,9 @@ fixed_methods = {
 }
 # lineplot types
 plot_types = ["Classifier"]
-# plot_types = ["Feature", "Classifier"]
 
-DATA_ROOT = "/storage/store2/work/haggarwa/retreat_2023"
-out_dir = os.path.join(DATA_ROOT, "plots_l2_penalty_in_pretraining")
+DATA_ROOT = "."
+out_dir = os.path.join(DATA_ROOT, "plots")
 os.makedirs(out_dir, exist_ok=True)
 
 ### Calculate average gains
@@ -104,7 +82,9 @@ for metric in metrics:
     ):
         for feature in features:
             results_dir = os.path.join(
-                DATA_ROOT, "results_l2_penalty_in_pretraining", f"{dataset}_{feature}"
+                DATA_ROOT,
+                "results",
+                f"{dataset}_{feature}",
             )
             for classifier in classifiers:
                 pickles = glob(
@@ -200,37 +180,7 @@ for metric in metrics:
     df = df.reset_index(drop=True)
     df[metric] = df[metric] * 100
 
-    ### save average accuracy tables
-    av_acc = (
-        df.groupby(["dataset", "Setting", "Feature", "Classifier"])
-        .mean()
-        .reset_index()
-    )
-    # get std deviation
-    std_acc = (
-        df.groupby(["dataset", "Setting", "Feature", "Classifier"])
-        .std()
-        .reset_index()
-    )
-    for dataframe, typ in zip([av_acc, std_acc], ["mean", "std"]):
-        dataframe["Dataset"] = dataframe["dataset"].map(fixed_datasets)
-        dataframe = dataframe[
-            ["Dataset", "Feature", "Classifier", "Setting", metric, "Order"]
-        ]
-        dataframe = dataframe.round(1)
-        dataframe = dataframe.pivot(
-            index=["Dataset", "Order", "Feature", "Classifier"],
-            columns="Setting",
-            values=metric,
-        )
-        dataframe = dataframe.sort_values(by="Order")
-        dataframe.to_csv(
-            os.path.join(out_dir, f"{typ}_{metric}.csv"),
-            index=True,
-            header=True,
-        )
-
-        print(f"Plotting {metric} barplots...")
+    print(f"Plotting {metric} barplots...")
 
     ### mean barplots
     df_mean = df.groupby(["dataset", "Setting", "Feature", "Classifier"])
@@ -239,7 +189,6 @@ for metric in metrics:
         df_mean["Setting"] + ", " + df_mean["Classifier"]
     )
     chance = df_mean[df_mean["Setting"] == "Chance"]
-    chance = chance.groupby(["dataset"]).mean().reset_index()
     chance = chance[["dataset", metric]].set_index("dataset").to_dict()
     order = [
         "Ensemble, MLP",
@@ -267,6 +216,13 @@ for metric in metrics:
         hue_order=order,
         order=["Voxels", "DiFuMo"],
         col_wrap=3,
+        col_order=[
+            "neuromod",
+            "aomic_anticipation",
+            "forrest",
+            "bold",
+            "rsvp",
+        ],
     )
     fig.fig.subplots_adjust(wspace=0.2)
     fig.set_xlabels("Average accuracy (%)", wrap=True, clear_inner=False)
@@ -322,14 +278,14 @@ for metric in metrics:
     plt.savefig(
         os.path.join(
             out_dir,
-            f"bench_{metric}.png",
+            "fig2.png",
         ),
         bbox_inches="tight",
     )
     plt.savefig(
         os.path.join(
             out_dir,
-            f"bench_{metric}.svg",
+            "fig2.svg",
         ),
         bbox_inches="tight",
     )
@@ -371,23 +327,6 @@ for metric in metrics:
             )
             fig.fig.subplots_adjust(hspace=1)
             for i, ax in enumerate(fig.axes.flatten()):
-                # ax.set(
-                #     xscale="log",
-                #     # yscale="log",
-                #     # ylim=(0, 1),
-                #     # xlim=(0, 5000),
-                # )
-                # ax.set_xscale("log", base=2)
-                # if n_samples[i] > 100:
-                #     ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
-                #     ax.ticklabel_format(style="plain")
-                #     fmt = ax.get_xaxis().get_major_formatter()
-                # else:
-                #     ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
-                #     fmt = ax.get_xaxis().get_major_formatter()
-                #     fmt.set_scientific(False)
-                #     print(fmt.__dict__)
-
                 title = f"{fixed_datasets[datasets[i]]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
                 ax.text(
                     0.5,
@@ -469,10 +408,6 @@ for metric in metrics:
         ax.set_title(title)
         ax.axhline(0, color="k", label="No gain")
         ax.axvline(10, color="k", label="10 sample per class")
-        # ax.set(xscale="log")
-        # ax.get_xaxis().set_major_formatter(plt.ScalarFormatter())
-        # ax.ticklabel_format(style="plain")
-
         samples_per_class = n_samples[i] / n_classes[i]
 
         if samples_per_class > 40:
@@ -498,80 +433,15 @@ for metric in metrics:
     plt.savefig(
         os.path.join(
             out_dir,
-            f"gains_v_samples_per_class_{metric}.png",
+            "fig3.png",
         ),
         bbox_inches="tight",
     )
     plt.savefig(
         os.path.join(
             out_dir,
-            f"gains_v_samples_per_class_{metric}.svg",
+            "fig3.svg",
         ),
         bbox_inches="tight",
     )
     plt.close()
-
-    ### lmplots of gains vs. n_samples_per_class
-
-    # types = gains_[plot_type].unique()
-    # for t in types:
-    #     gains_ = get_lm_fit(gains_, t, plot_type)
-
-    # fig = sns.lmplot(
-    #     data=gains,
-    #     x="n_samples_per_class",
-    #     y="gain",
-    #     col="dataset",
-    #     # style=plot_type,
-    #     hue=plot_type,
-    #     aspect=1.5,
-    #     logx=True,
-    #     x_estimator=np.mean,
-    #     facet_kws={
-    #         "sharey": False,
-    #         "sharex": False,
-    #     },
-    #     # kind="line",
-    #     palette=["g", "g"],
-    #     # err_style="bars",
-    #     markers=["o", "x"],
-    #     scatter_kws=dict(s=100),
-    #     # dashes=False,
-    #     # linewidth=0,
-    # )
-
-    # for i, ax in enumerate(fig.axes.flatten()):
-    #     ax.set_xlim(
-    #         1,
-    #     )
-    #     title = f"{fixed_datasets[datasets[i]]}, {n_subs[i]} subjects,\n {n_samples[i]} samples"
-    #     ax.set_title(title)
-    #     ax.lines[-1].set(linestyle="--")
-    #     ax.axhline(0, color="k", label="No gain")
-    #     ax.axvline(10, color="k", label="10 sample per class")
-    #     # pdb.set_trace()
-    #     # ax.set(xscale="log")
-
-    # fig.set_ylabels("Gain (%)", clear_inner=False)
-    # fig.set_xlabels("Number of samples per class", clear_inner=False)
-
-    # # legend = fig.legend
-    # # for i, handle in enumerate(legend.legend_handles):
-    # #     if i == 1:
-    # #         handle.set_linestyle("--")
-
-    # plt.savefig(
-    #     os.path.join(
-    #         out_dir,
-    #         f"gains_v_samples_per_class_lm_{metric}_{plot_type}_{selection}.png",
-    #     ),
-    #     bbox_inches="tight",
-    # )
-    # plt.savefig(
-    #     os.path.join(
-    #         out_dir,
-    #         f"gains_v_samples_per_class_lm_{metric}_{plot_type}_{selection}.svg",
-    #     ),
-    #     bbox_inches="tight",
-    # )
-    # plt.close()
