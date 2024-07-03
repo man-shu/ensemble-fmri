@@ -79,12 +79,22 @@ To generate numbers plotted in Fig 4 (over varying numbers of subjects in the en
     python scripts/vary_n_subs.py data results 20 voxels
     ```
 
-#### Optional experiment
+#### Optional experiments
 
-We can also compute the importance scores for the ensemble setting using the DiFuMo features and RandomForest classifier, plotted in Supplementary Fig. 2 in the paper:
+##### Feature importance scores
+
+For computing the importance scores for the ensemble setting using the DiFuMo features and RandomForest classifier, plotted in Supplementary Fig. 2 in the paper:
 
 ```bash
 python scripts/feat_imp.py data results 20
+```
+
+##### Comparison with GCN
+
+For comparing the ensemble approach with the GCN approach, run:
+
+```bash
+python scripts/compare_with_gcn.py data results 20 gcn/param_grid.json
 ```
 
 ## Time taken
@@ -127,7 +137,7 @@ time python scripts/vary_n_subs.py data results 20 voxels
 
 ```bash
 # command
-python scripts/feat_imp.py data results 20  
+time python scripts/feat_imp.py data results 20  
 
 # output
 2596918.56s user 65902.53s system 2082% cpu 35:31:34.59 total
