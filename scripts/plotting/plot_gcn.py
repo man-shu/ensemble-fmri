@@ -1,7 +1,7 @@
 """
 This script adds additional accuracy bars and lines from the GCN classifier,
 as obtained from the `compare_with_gcn.py` script. The plots are saved in the 
-`gcn/plots_GCN`.
+`plots/gcn`.
 
 Description of the plots:
 1. fig2_GCN: barplots of average accuracy for each dataset, feature, classifier, 
@@ -27,7 +27,6 @@ datasets = [
     "forrest",
     "bold",
     "rsvp",
-    # "nsd",
 ]
 # Camelized dataset names
 fixed_datasets = {
@@ -58,7 +57,7 @@ fixed_methods = {
 plot_types = ["Classifier"]
 
 DATA_ROOT = "."
-out_dir = os.path.join(DATA_ROOT, "gcn", "plots_GCN")
+out_dir = os.path.join(DATA_ROOT, "plots", "gcn")
 os.makedirs(out_dir, exist_ok=True)
 
 ### Calculate average gains

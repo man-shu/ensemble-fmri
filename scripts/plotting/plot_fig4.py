@@ -181,7 +181,6 @@ if __name__ == "__main__":
         gain_df["n_samples"] / gain_df["n_classes"]
     )
     gain_df["gain"] = gain_df["gain"] * 100
-    gain_df["logistic_fit"] = gain_df["logistic_fit"] * 100
     gain_df = fix_names(gain_df)
 
     colors = sns.color_palette("tab10")
