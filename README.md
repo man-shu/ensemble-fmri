@@ -29,6 +29,11 @@ data/neuromod
 
 4. The `3mm` directory should also contain the labels for each subject. The labels should be in a CSV file. The filenames should be in the format `<subject_id>_labels.csv` e.g. `sub-01_labels.csv` in this case. The CSV file should have one column without any header. The column should contain the labels for each event/volume in nifti file.
 
+### Computing event-wise GLM effect size maps
+
+If you need a tutorial on how to get event-wise GLM effect size maps, you can follow [this tutorial](https://nilearn.github.io/stable/auto_examples/07_advanced/plot_beta_series.html#define-the-lss-models). Note that the method to compute event-wise GLM effect size maps is referred to as Least Squares Separation (LSS) in the tutorial.
+
+We did the same for the AOMIC dataset using the `scripts/glm/glm_anticipation.py` script. So once you have downloaded the AOMIC dataset from [here](https://openneuro.org/datasets/ds002785/versions/2.0.0) you can update the paths in the script and run it to get the event-wise GLM effect size maps. Note that you only need the files with the `*task-anticipation*` wildcard in the filename from the AOMIC dataset.
 
 ## Reproduce the results in the paper
 
@@ -78,7 +83,6 @@ install the `torch` and `torch-geometric` packages:
 pip install torch torch-geometric
 ```
 
-
 ### Run the experiments
 
 To generate numbers plotted in Fig 2 and Fig 3 (over varying training sizes) in the paper:
@@ -119,12 +123,52 @@ For computing the importance scores for the ensemble setting using the DiFuMo fe
 python scripts/feat_imp.py data results 20
 ```
 
+##### Pretraining L1 penalized Linear SVC
+
+To use the pretraining strategy with L1 penalized Linear SVC (the results plotted in Supplementary Figure 2), you can change line 175 under the `pretrain` function in `utils.py` from:
+
+```python
+clf = LinearSVC(dual="auto")
+```
+
+to:
+
+```python
+clf = LinearSVC(dual="auto", penalty="l1")
+```
+
 ##### Comparison with GCN
 
 For comparing the ensemble approach with the GCN approach, run:
 
 ```bash
 python scripts/compare_with_gcn.py data results 20 gcn/param_grid.json
+```
+
+### Plot the results
+
+To plot Figures 2 and 3 in the paper, run:
+
+```bash
+python scripts/plotting/plot_fig2_fig3.py
+```
+
+To plot Figure 4 in the paper, run:
+
+```bash
+python scripts/plotting/plot_fig4.py
+```
+
+To plot the feature importance scores, run the following command. This will plot feature importance scores on surfaces and glass brains for each subject in each dataset. The plots will be saved in the `plots/feat_imp` directory.
+
+```bash
+python scripts/plotting/plot_suppfig1.py
+```
+
+To plot the comparison with GCN, run the following command. This will create similar plots as in Fig 2 but with the GCN results.
+
+```bash
+python scripts/plotting/plot_gcn.py
 ```
 
 ## Time taken
