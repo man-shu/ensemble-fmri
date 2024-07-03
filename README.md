@@ -1,6 +1,36 @@
 # Ensemble Learning and Decoding
 
-## How to run
+## Preparing your data
+
+All the scripts expect event-wise GLM effect size maps in the `data` directory. The data structure should be as follows:
+
+```bash
+data/neuromod
+└── 3mm
+    ├── sub-01.nii.gz
+    ├── sub-01_labels.csv
+    ├── sub-01_runs.csv
+    ├── sub-02.nii.gz
+    ├── sub-02_labels.csv
+    ├── sub-02_runs.csv
+    ├── sub-03.nii.gz
+    ├── sub-03_labels.csv
+    ├── sub-03_runs.csv
+    ├── sub-05.nii.gz
+    ├── sub-05_labels.csv
+    └── sub-05_runs.csv
+```
+
+1. Under `data`, you need to create a sub-directory with the name of your dataset e.g. `neuromod` in this case.
+
+2. This sub-directory should contain another sub-directory with the name of the resolution of the data e.g. `3mm` in this case. Note that we downsampled all our data to 3mm resolution because it is computationally expensive to work with the full resolution data.
+
+3. The `3mm` directory should contain the effect size maps for each subject. The effect size maps should be in the NIfTI format. The filenames should be in the format `<subject_id>.nii.gz` e.g. `sub-01.nii.gz` in this case. Each volume in this nifti file should correspond to an event in the task. All runs should be concatenated in this one nifti file.
+
+4. The `3mm` directory should also contain the labels for each subject. The labels should be in a CSV file. The filenames should be in the format `<subject_id>_labels.csv` e.g. `sub-01_labels.csv` in this case. The CSV file should have one column without any header. The column should contain the labels for each event/volume in nifti file.
+
+
+## Reproduce the results in the paper
 
 ### Clone the repository
 
