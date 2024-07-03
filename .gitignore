@@ -8,3 +8,5 @@ deprecated/*results
 *DS_Store*
 zenodo
 Variable_Importance
+*.svg
+plots/feat_imp/*
