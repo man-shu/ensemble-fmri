@@ -93,11 +93,12 @@ def compute_imp_std(pred_scores):
 
 
 if __name__ == "__main__":
-    N_JOBS = 5
+    N_JOBS = 8
 
     data_dir = os.path.join(DATA_ROOT, "data", "feat_imp")
     results_root = os.path.join(DATA_ROOT, "results")
     out_dir = os.path.join(DATA_ROOT, "plots_copy", "thresholded_featimp")
+    os.makedirs(data_dir, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
 
     # datasets
@@ -114,7 +115,6 @@ if __name__ == "__main__":
         "forrest": "Forrest",
         "bold5000": "BOLD5000",
         "rsvp": "RSVP-IBC",
-        # "nsd": "NSD",
         "aomic_anticipation": "AOMIC",
     }
     n_samples = [50, 61, 175, 360]
@@ -204,28 +204,31 @@ if __name__ == "__main__":
                                 f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.nii.gz",
                             )
                         )
-                    # plotting.plot_img_on_surf(
-                    #     z_map,
-                    #     title=f"{fixed_datasets[dataset]}",
-                    #     fsaverage="fsaverage",
-                    #     views=["lateral"],
-                    # )
-                    # plt.savefig(
-                    #     os.path.join(
-                    #         out_dir,
-                    #         f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.png",
-                    #     ),
-                    #     bbox_inches="tight",
-                    # )
-                    # plt.savefig(
-                    #     os.path.join(
-                    #         out_dir,
-                    #         f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.svg",
-                    #     ),
-                    #     bbox_inches="tight",
-                    # )
-                    # plt.close()
 
+                    # plot on surface
+                    plotting.plot_img_on_surf(
+                        z_map,
+                        title=f"{fixed_datasets[dataset]}",
+                        surf_mesh="fsaverage",
+                        views=["lateral"],
+                    )
+                    plt.savefig(
+                        os.path.join(
+                            out_dir,
+                            f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.png",
+                        ),
+                        bbox_inches="tight",
+                    )
+                    plt.savefig(
+                        os.path.join(
+                            out_dir,
+                            f"{dataset}_{feature}_{classifier}_{sub}_featimp_voxels_z.svg",
+                        ),
+                        bbox_inches="tight",
+                    )
+                    plt.close()
+
+                    # plot on glass brain
                     plotting.plot_glass_brain(
                         z_map,
                         title=f"{fixed_datasets[dataset]}",
