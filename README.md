@@ -153,11 +153,17 @@ To plot Figures 2 and 3 in the paper, run:
 python scripts/plotting/plot_fig2_fig3.py
 ```
 
+![Figure 2: Average decoding accuracy: Each plot represents a different dataset (along columns). The average decoding accuracy is plotted along the x-axis. The averages are across all training sizes, subjects and 20 cross-validation splits. The error bars represent a 95\% confidence interval of the bootstrap distribution. The horizontal line represents the chance level of accuracy.](plots/fig2.png "Average decoding accuracy")
+
+![Figure 3: Gain in decoding accuracy when varying the number of training samples per class: Each plot represents a different dataset (along columns). The y-axis shows the average percent gain in decoding accuracy (accuracy of ensemble - accuracy of conventional) across all subjects and 20 cross-validation splits. On the x-axis, training size is reported as the number of samples per class in each cross-validation split. The confidence intervals represent a 95% confidence interval of bootstrap distribution. The horizontal line represents no average gain in accuracy and the vertical line, 10 samples per class.](plots/fig3.png "Gain in decoding accuracy when varying the number of training samples per class")
+
 To plot Figure 4 in the paper, run:
 
 ```bash
 python scripts/plotting/plot_fig4.py
 ```
+
+![Figure 4: Gain in decoding accuracy over a varying number of subjects in the ensemble: Each plot represents a different dataset (along columns). The x-axis represents the number of subjects used in the ensemble method. The y-axis represents the average percent gain in decoding accuracy (accuracy of ensemble - accuracy of conventional) across all training sizes and 5 cross-validation splits. The confidence intervals represent a 95% interval of bootstrap distribution. The horizontal line represents no average gain in accuracy and the vertical line at 10 subjects in the ensemble.](plots/fig4.png "Gain in decoding accuracy over a varying number of subjects in the ensemble")
 
 To plot the feature importance scores, run the following command. This will plot feature importance scores on surfaces and glass brains for each subject in each dataset. The plots will be saved in the `plots/feat_imp` directory.
 
@@ -165,11 +171,16 @@ To plot the feature importance scores, run the following command. This will plot
 python scripts/plotting/plot_suppfig1.py
 ```
 
+One example is this:
+![Supplementary Figure 1: Voxel-wise feature importance scores for one subject in each dataset:} The scores are z-scored and thresholded to only show the top 1 percentile. From left to right, top to bottom: the cognitive tasks performed in Neuromod is visual N-back, in AOMIC is emotion anticipation, in Forrest is music genre perception, and in RSVP-IBC is RSVP language task.](plots/feat_imp/rsvp_difumo_RandomForest_sub-04_featimp_voxels_z_glass.png "Broca's area is important for decoding conditions in the RSVP language task")
+
 To plot the comparison with GCN, run the following command. This will create similar plots as in Fig 2 but with the GCN results.
 
 ```bash
 python scripts/plotting/plot_gcn.py
 ```
+
+![Comparison with GCN](plots/gcn/fig2_GCN.png "Comparison with GCN: Average decoding accuracy")
 
 ## Time taken
 
