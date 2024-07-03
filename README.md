@@ -58,8 +58,8 @@ unzip data.zip -d data
 Create a new conda environment with the dependencies.
 
 ```bash
-conda env create -f env/main.yml
-conda activate ensemble_nogpu
+conda env create -f env/ensemblepy.yml
+conda activate ensemblepy
 ```
 
 #### Optional dependencies

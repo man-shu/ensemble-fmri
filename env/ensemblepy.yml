@@ -1,4 +1,4 @@
-name: ensemble_nogpu
+name: ensemblepy
 channels:
   - defaults
 dependencies:
