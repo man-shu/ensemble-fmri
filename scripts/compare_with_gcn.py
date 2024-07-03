@@ -686,7 +686,7 @@ if __name__ == "__main__":
                 results_dir,
                 do_param_sweep=True,
                 param_grid=param_grid,
-                classifier="GNN",
+                classifier="GCN",
                 random_state=0,
                 param_sweep_cv_splits=5,
             )
