@@ -172,7 +172,7 @@ def pretrain(subject, data, dummy, data_dir, atlas):
         if dummy:
             clf = DummyClassifier(strategy="most_frequent")
         else:
-            clf = LinearSVC(dual="auto", penalty="l1")
+            clf = LinearSVC(dual="auto")
         # fit classifier
         clf.fit(X, Y)
         dump(clf, clf_file)
