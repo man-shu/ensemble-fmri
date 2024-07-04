@@ -44,6 +44,7 @@ datas = [
     "your_dataset_name"
 ]
 ```
+
 You can even remove the other datasets if you are only interested in your dataset.
 
 ### Computing event-wise GLM effect size maps
@@ -188,7 +189,7 @@ To plot the feature importance scores, run the following command. This will plot
 python scripts/plotting/plot_suppfig1.py
 ```
 
-One example is this:
+The plots will look like this:
 ![Supplementary Figure 1: Voxel-wise feature importance scores for one subject in each dataset:} The scores are z-scored and thresholded to only show the top 1 percentile. From left to right, top to bottom: the cognitive tasks performed in Neuromod is visual N-back, in AOMIC is emotion anticipation, in Forrest is music genre perception, and in RSVP-IBC is RSVP language task.](plots/feat_imp/rsvp_difumo_RandomForest_sub-04_featimp_voxels_z_glass.png "Broca's area is important for decoding conditions in the RSVP language task")
 
 To plot the comparison with GCN, run the following command. This will create similar plots as in Fig 2 but with the GCN results.
@@ -244,8 +245,6 @@ time python scripts/feat_imp.py data results 20
 # output
 2596918.56s user 65902.53s system 2082% cpu 35:31:34.59 total
 ```
-
-## More details
 
 ### Install conda
 
