@@ -53,6 +53,10 @@ If you want to know how to get event-wise GLM effect size maps, you can follow [
 
 We did the same for the AOMIC dataset using the `scripts/glm/glm_anticipation.py` script. So once you have downloaded the AOMIC dataset from [here](https://openneuro.org/datasets/ds002785/versions/2.0.0) you can update the paths in the script and run it to get the event-wise GLM effect size maps. Note that you only need the files with the `*task-anticipation*` wildcard in the filename from the AOMIC dataset.
 
+### Issues
+
+In case you face any issues, please feel free to open an issue on this repository.
+
 ## Reproduce the results in the paper
 
 ### Clone the repository

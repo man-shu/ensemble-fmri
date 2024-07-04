@@ -1,5 +1,5 @@
 data
-results
+results*
 deprecated/*results
 *.zip
 *.code-workspace
@@ -11,3 +11,4 @@ Variable_Importance
 *.svg
 plots/feat_imp/*
 plots/gcn/*
+difumo*
