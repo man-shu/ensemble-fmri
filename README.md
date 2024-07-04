@@ -29,6 +29,23 @@ data/neuromod
 
 4. The `3mm` directory should also contain the labels for each subject. The labels should be in a CSV file. The filenames should be in the format `<subject_id>_labels.csv` e.g. `sub-01_labels.csv` in this case. The CSV file should have one column without any header. The column should contain the labels for each event/volume in nifti file.
 
+5. Finally, you just need to add the name of your dataset (the sub-directory you just created under `data`) in all the scripts.
+
+For example, in `scripts/vary_train_size.py`, you need to add your dataset's name in  the `datas` list as follows:
+
+```python
+# in lines 42-48
+datas = [
+    "neuromod",
+    "forrest",
+    "rsvp",
+    "bold",
+    "aomic_anticipation",
+    "your_dataset_name"
+]
+```
+You can even remove the other datasets if you are only interested in your dataset.
+
 ### Computing event-wise GLM effect size maps
 
 If you need a tutorial on how to get event-wise GLM effect size maps, you can follow [this tutorial](https://nilearn.github.io/stable/auto_examples/07_advanced/plot_beta_series.html#define-the-lss-models). Note that the method to compute event-wise GLM effect size maps is referred to as Least Squares Separation (LSS) in the tutorial.
