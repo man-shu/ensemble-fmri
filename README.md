@@ -23,9 +23,9 @@ data/neuromod
 
 1. Under `data`, you need to create a sub-directory with the name of your dataset e.g. `neuromod` in this case.
 
-2. This sub-directory should contain another sub-directory with the name of the resolution of the data e.g. `3mm` in this case. Note that we downsampled all our data to 3mm resolution because it is computationally expensive to work with the full resolution data.
+2. This sub-directory should contain another sub-directory named as resolution of the data e.g. `3mm` in this case. Note that we downsampled all our data to 3mm resolution because it is computationally expensive to work with the full resolution data.
 
-3. The `3mm` directory should contain the effect size maps for each subject. The effect size maps should be in the NIfTI format. The filenames should be in the format `<subject_id>.nii.gz` e.g. `sub-01.nii.gz` in this case. Each volume in this nifti file should correspond to an event in the task. All runs should be concatenated in this one nifti file.
+3. The `3mm` directory should contain the effect size maps for each subject. The effect size maps should be in the nifti format. The filenames should be in the format `<subject_id>.nii.gz` e.g. `sub-01.nii.gz` in this case. The subject_id in itself could be anything as long as it is unique for each file. Each volume in this 4D nifti file should correspond to an event in the task. All runs should be concatenated in this one nifti file.
 
 4. The `3mm` directory should also contain the labels for each subject. The labels should be in a CSV file. The filenames should be in the format `<subject_id>_labels.csv` e.g. `sub-01_labels.csv` in this case. The CSV file should have one column without any header. The column should contain the labels for each event/volume in nifti file.
 
@@ -49,7 +49,7 @@ You can even remove the other datasets if you are only interested in your datase
 
 ### Computing event-wise GLM effect size maps
 
-If you need a tutorial on how to get event-wise GLM effect size maps, you can follow [this tutorial](https://nilearn.github.io/stable/auto_examples/07_advanced/plot_beta_series.html#define-the-lss-models). Note that the method to compute event-wise GLM effect size maps is referred to as Least Squares Separation (LSS) in the tutorial.
+If you want to know how to get event-wise GLM effect size maps, you can follow [this tutorial](https://nilearn.github.io/stable/auto_examples/07_advanced/plot_beta_series.html#define-the-lss-models). Note that the method to compute event-wise GLM effect size maps is referred to as Least Squares Separation (LSS) in the tutorial.
 
 We did the same for the AOMIC dataset using the `scripts/glm/glm_anticipation.py` script. So once you have downloaded the AOMIC dataset from [here](https://openneuro.org/datasets/ds002785/versions/2.0.0) you can update the paths in the script and run it to get the event-wise GLM effect size maps. Note that you only need the files with the `*task-anticipation*` wildcard in the filename from the AOMIC dataset.
 
