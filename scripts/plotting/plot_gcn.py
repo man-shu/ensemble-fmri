@@ -44,7 +44,7 @@ features = ["voxels", "difumo"]
 # fixed feature names
 fixed_features = {"voxels": "Voxels", "difumo": "DiFuMo"}
 # classifiers
-classifiers = ["MLP", "LinearSVC", "RandomForest", "GNN"]
+classifiers = ["MLP", "LinearSVC", "RandomForest", "GCN"]
 # settings
 methods = ["conventional", "stacked"]
 # fixed method names
@@ -154,7 +154,7 @@ for metric in metrics:
         "Conventional, MLP",
         "Conventional, LinearSVC",
         "Conventional, RandomForest",
-        "Conventional, GNN",
+        "Conventional, GCN",
     ]
     colors = sns.color_palette("tab20c")
     ensemble_colors = colors[:3]
