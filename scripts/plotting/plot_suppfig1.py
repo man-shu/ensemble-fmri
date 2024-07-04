@@ -136,7 +136,6 @@ if __name__ == "__main__":
                     if os.path.exists(z_map_path):
                         z_map = image.load_img(z_map_path)
                     else:
-                        continue
                         atlas = datasets.fetch_atlas_difumo(
                             dimension=1024,
                             resolution_mm=3,
