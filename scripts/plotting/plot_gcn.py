@@ -53,6 +53,13 @@ fixed_methods = {
     "stacked": "Ensemble",
     "chance": "Chance",
 }
+# fixed classifier names, only for GNN to GCN, others remain the same
+fixed_classifiers = {
+    "MLP": "MLP",
+    "LinearSVC": "LinearSVC",
+    "RandomForest": "RandomForest",
+    "GNN": "GCN",
+}
 # lineplot types
 plot_types = ["Classifier"]
 
@@ -99,6 +106,7 @@ for metric in metrics:
                     # fix names
                     df["Setting"] = df["Setting"].map(fixed_methods)
                     df["Feature"] = df["Feature"].map(fixed_features)
+                    df["Classifier"] = df["Classifier"].map(fixed_classifiers)
 
                     # n subjects and classes
                     n_sub = len(pickles)
