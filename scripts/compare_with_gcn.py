@@ -300,10 +300,10 @@ def param_sweep(
     # check if best params already computed and load
     if os.path.exists(best_params_file):
         best_params = load(best_params_file)
-        print(
-            f"\nBest params for {dataset} {subject} already found:",
-            f" {best_params}",
-        )
+        # print(
+        #     f"\nBest params for {dataset} {subject} already found:",
+        #     f" {best_params}",
+        # )
         return best_params
     # compute best params if not found
     print(f"\nStarting param sweep for {subject}")
