@@ -261,4 +261,4 @@ If you don't have conda installed, you can install it from [here](https://docs.c
 
 ## Issues
 
-In case you face any issues, please feel free to open an issue on this repository.
+In case you face any issues, please feel free to [open an issue](https://github.com/man-shu/ensemble-fmri/issues/new) on this repository.
