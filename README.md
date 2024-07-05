@@ -1,5 +1,53 @@
 # Ensemble Learning and Decoding
 
+## Setup
+
+### Clone the repository
+
+```bash
+git clone git@github.com:man-shu/ensemble-fmri.git
+```
+
+### Download the data
+
+Download downsampled 3mm event-wise GLM effect-size maps of fMRI datasets. It is only ~7GB in size. Yes it is indeed _small_
+
+```bash
+cd ensemble-fmri
+wget https://zenodo.org/records/12204275/files/data.zip
+unzip data.zip -d data
+```
+
+### Install the dependencies
+
+Create a new conda environment with the dependencies.
+
+```bash
+conda env create -f env/ensemblepy.yml
+conda activate ensemblepy
+```
+
+### Optional dependencies
+
+#### For calculating feature importance scores
+
+We used a conditional permutation importance method to calculate the importance scores as provided in [this package](https://github.com/achamma723/Variable_Importance) and explained in [this paper](https://papers.nips.cc/paper_files/paper/2023/hash/d60e14c19cd6e0fc38556ad29ac8fbc9-Abstract-Conference.html). I have modified the code to work with the ensemble setting. To install the package, run:
+
+```bash
+git clone git@github.com:man-shu/Variable_Importance.git
+cd Variable_Importance/BBI_package
+pip install .
+cd ../..
+```
+
+#### For comparison with the Graph Convolutional Network (GCN)
+
+install the `torch` and `torch-geometric` packages:
+
+```bash
+pip install torch torch-geometric
+```
+
 ## Prepare your data
 
 All the scripts expect event-wise GLM effect size maps in the `data` directory. The data structure should be as follows:
@@ -31,21 +79,23 @@ data/neuromod
 
 5. Finally, you just need to add the name of your dataset (the sub-directory you just created under `data`) in all the scripts.
 
-For example, in `scripts/vary_train_size.py`, you need to add your dataset's name in  the `datas` list as follows:
+    For example, in `scripts/vary_train_size.py`, you need to add your dataset's name in  the `datas` list as follows:
 
-```python
-# in lines 42-48
-datas = [
-    "neuromod",
-    "forrest",
-    "rsvp",
-    "bold",
-    "aomic_anticipation",
-    "your_dataset_name"
-]
-```
+    ```python
+    # in lines 42-48
+    datas = [
+        "neuromod",
+        "forrest",
+        "rsvp",
+        "bold",
+        "aomic_anticipation",
+        "your_dataset_name"
+    ]
+    ```
 
-You can even remove the other datasets if you are only interested in your dataset.
+    You can even remove the other datasets if you are only interested in your dataset.
+
+Section [Reproduce the results in the paper](#reproduce-the-results-in-the-paper) explains what each script does and how to run them.
 
 ### Computing event-wise GLM effect size maps
 
@@ -53,59 +103,9 @@ If you want to know how to get event-wise GLM effect size maps, you can follow [
 
 We did the same for the AOMIC dataset using the `scripts/glm/glm_anticipation.py` script. So once you have downloaded the AOMIC dataset from [here](https://openneuro.org/datasets/ds002785/versions/2.0.0) you can update the paths in the script and run it to get the event-wise GLM effect size maps. Note that you only need the files with the `*task-anticipation*` wildcard in the filename from the AOMIC dataset.
 
-### Issues
-
-In case you face any issues, please feel free to open an issue on this repository.
-
 ## Reproduce the results in the paper
 
-### Clone the repository
-
-```bash
-git clone git@github.com:man-shu/ensemble-fmri.git
-```
-
-### Download the data
-
-Download downsampled 3mm event-wise GLM effect-size maps of fMRI datasets. It is only ~7GB in size. Yes it is indeed _small_
-
-```bash
-cd ensemble-fmri
-wget https://zenodo.org/records/12204275/files/data.zip
-unzip data.zip -d data
-```
-
-### Install the dependencies
-
-Create a new conda environment with the dependencies.
-
-```bash
-conda env create -f env/ensemblepy.yml
-conda activate ensemblepy
-```
-
-#### Optional dependencies
-
-##### For calculating feature importance scores
-
-We used a conditional permutation importance method to calculate the importance scores as provided in [this package](https://github.com/achamma723/Variable_Importance) and explained in [this paper](https://papers.nips.cc/paper_files/paper/2023/hash/d60e14c19cd6e0fc38556ad29ac8fbc9-Abstract-Conference.html). I have modified the code to work with the ensemble setting. To install the package, run:
-
-```bash
-git clone git@github.com:man-shu/Variable_Importance.git
-cd Variable_Importance/BBI_package
-pip install .
-cd ../..
-```
-
-##### For comparison with the Graph Convolutional Network (GCN)
-
-install the `torch` and `torch-geometric` packages:
-
-```bash
-pip install torch torch-geometric
-```
-
-### Run the experiments
+### Run main experiments
 
 To generate numbers plotted in Fig 2 and Fig 3 (over varying training sizes) in the paper:
 
@@ -174,6 +174,7 @@ To plot Figures 2 and 3 in the paper, run:
 ```bash
 python scripts/plotting/plot_fig2_fig3.py
 ```
+
 Figure 2:
 ![Figure 2: Average decoding accuracy: Each plot represents a different dataset (along columns). The average decoding accuracy is plotted along the x-axis. The averages are across all training sizes, subjects and 20 cross-validation splits. The error bars represent a 95\% confidence interval of the bootstrap distribution. The horizontal line represents the chance level of accuracy.](plots/fig2.png "Average decoding accuracy")
 
@@ -252,6 +253,10 @@ time python scripts/feat_imp.py data results 20
 2596918.56s user 65902.53s system 2082% cpu 35:31:34.59 total
 ```
 
-### Install conda
+## Install conda
 
 If you don't have conda installed, you can install it from [here](https://docs.conda.io/en/latest/miniconda.html).
+
+## Issues
+
+In case you face any issues, please feel free to open an issue on this repository.
