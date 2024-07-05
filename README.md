@@ -42,7 +42,9 @@ cd ../..
 
 #### For comparison with the Graph Convolutional Network (GCN)
 
-install the `torch` and `torch-geometric` packages:
+We also compared the ensemble approach with the conventional Graph Convolutional Network (GCN) classifier. The GCN implementation used is inspired by [this tutorial](https://main-educational.github.io/brain_encoding_decoding/gcn_decoding.html)
+
+It needs the following dependencies:
 
 ```bash
 pip install torch torch-geometric
@@ -135,9 +137,9 @@ To generate numbers plotted in Fig 4 (over varying numbers of subjects in the en
     python scripts/vary_n_subs.py data results 20 voxels
     ```
 
-#### Optional experiments
+### Optional experiments
 
-##### Feature importance scores
+#### Feature importance scores
 
 For computing the importance scores for the ensemble setting using the DiFuMo features and RandomForest classifier, plotted in Supplementary Fig. 2 in the paper:
 
@@ -145,7 +147,7 @@ For computing the importance scores for the ensemble setting using the DiFuMo fe
 python scripts/feat_imp.py data results 20
 ```
 
-##### Pretraining L1 penalized Linear SVC
+#### Pretraining L1 penalized Linear SVC
 
 To use the pretraining strategy with L1 penalized Linear SVC (the results plotted in Supplementary Figure 2), you can change line 175 under the `pretrain` function in `utils.py` from:
 
@@ -159,7 +161,7 @@ to:
 clf = LinearSVC(dual="auto", penalty="l1")
 ```
 
-##### Comparison with GCN
+#### Comparison with GCN
 
 For comparing the ensemble approach with the GCN approach, run:
 
