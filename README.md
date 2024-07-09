@@ -1,5 +1,9 @@
 # Ensemble Learning and Decoding
 
+Code repository for the paper "Across-subject ensemble-learning alleviates the need for large samples for fMRI decoding" by Himanshu Aggarwal, Liza Al-Shikhley and Bertrand Thirion.
+
+A preprint version of this work can be found here: <https://hal.science/hal-04636523>
+
 ## Setup
 
 ### Clone the repository
